@@ -5,6 +5,8 @@ import {
   ShieldCheck,
   GraduationCap,
   User,
+  Cloud,
+  RefreshCw,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
@@ -14,6 +16,10 @@ export const Header: React.FC = () => {
     isGuru,
     isMobileNavOpen,
     setIsMobileNavOpen,
+    isCloudConnected,
+    isSyncing,
+    cloudProvider,
+    syncWithCloud,
   } = useApp();
 
   return (
@@ -65,8 +71,20 @@ export const Header: React.FC = () => {
           </div>
         </div>
 
-        {/* Sebelah Kanan: Profil User Terautentikasi */}
+        {/* Sebelah Kanan: Status Cloud DB + Profil User */}
         <div className="flex items-center space-x-2 sm:space-x-3">
+          {/* Cloud Status Badge */}
+          <button
+            type="button"
+            onClick={() => syncWithCloud()}
+            title="Klik untuk sinkronkan ulang database cloud"
+            className="hidden sm:inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50/80 hover:bg-emerald-100 text-emerald-800 text-[11px] font-black transition-all cursor-pointer"
+          >
+            <Cloud className="w-3.5 h-3.5 text-emerald-600" />
+            <span>{cloudProvider === 'supabase' ? 'Supabase Sync' : 'Cloud Sync'}</span>
+            <RefreshCw className={`w-3 h-3 text-emerald-600 ${isSyncing ? 'animate-spin' : ''}`} />
+          </button>
+
           <div className="flex items-center space-x-2.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-2xl">
             <div className="w-7 h-7 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-xs font-black">
               {isGuru ? <GraduationCap className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
@@ -85,3 +103,4 @@ export const Header: React.FC = () => {
     </header>
   );
 };
+

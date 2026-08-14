@@ -29,6 +29,55 @@ import {
   showWarningToast,
   showWarningAlert,
 } from '../utils/alerts';
+import {
+  batchSaveCloudStudents,
+  deleteCloudAttendance,
+  deleteCloudClass,
+  deleteCloudStudent,
+  deleteCloudTeacher,
+  deleteCloudUser,
+  fetchCloudSettings,
+  saveCloudAttendance,
+  saveCloudClass,
+  saveCloudSettings,
+  saveCloudStudent,
+  saveCloudTeacher,
+  saveCloudUser,
+  seedInitialFirestoreData,
+  subscribeCloudAttendance,
+  subscribeCloudClasses,
+  subscribeCloudStudents,
+  subscribeCloudTeachers,
+  subscribeCloudUsers,
+} from '../services/firestoreService';
+import {
+  isSupabaseConfigured,
+  saveCustomSupabaseConfig,
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY,
+} from '../lib/supabase';
+import {
+  batchSaveSupabaseStudents,
+  deleteSupabaseAttendance,
+  deleteSupabaseClass,
+  deleteSupabaseStudent,
+  deleteSupabaseTeacher,
+  deleteSupabaseUser,
+  fetchSupabaseAttendance,
+  fetchSupabaseClasses,
+  fetchSupabaseSettings,
+  fetchSupabaseStudents,
+  fetchSupabaseTeachers,
+  fetchSupabaseUsers,
+  saveSupabaseAttendance,
+  saveSupabaseClass,
+  saveSupabaseSettings,
+  saveSupabaseStudent,
+  saveSupabaseTeacher,
+  saveSupabaseUser,
+  seedInitialSupabaseData,
+  subscribeSupabaseChanges,
+} from '../services/supabaseService';
 
 interface LastScanned {
   student: Student;
@@ -54,6 +103,13 @@ interface AppContextType {
   activeTab: ActiveTab;
   setActiveTab: (tab: ActiveTab) => void;
   
+  // Cloud Database Status
+  isCloudConnected: boolean;
+  isSyncing: boolean;
+  cloudProvider: 'supabase' | 'firestore' | 'offline';
+  syncWithCloud: () => Promise<void>;
+  updateSupabaseConfig: (url: string, key: string) => void;
+
   // Data (Raw)
   students: Student[];
   classes: ClassRoom[];
@@ -281,6 +337,161 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return getSampleAttendanceRecords();
     }
   });
+
+  // Cloud Database Status
+  const [isCloudConnected, setIsCloudConnected] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [cloudProvider, setCloudProvider] = useState<'supabase' | 'firestore' | 'offline'>(() => {
+    return isSupabaseConfigured ? 'supabase' : 'firestore';
+  });
+
+  const updateSupabaseConfig = useCallback((url: string, key: string) => {
+    saveCustomSupabaseConfig(url, key);
+    if (url.trim() && key.trim()) {
+      setCloudProvider('supabase');
+      showSuccessToast('Konfigurasi Supabase disimpan! Memulai sinkronisasi...');
+    } else {
+      setCloudProvider('firestore');
+      showSuccessToast('Beralih ke mode default.');
+    }
+  }, []);
+
+  // Synchronize data from Cloud (Supabase priority, Firestore fallback)
+  const syncWithCloud = useCallback(async () => {
+    setIsSyncing(true);
+    try {
+      if (isSupabaseConfigured) {
+        setCloudProvider('supabase');
+        // 1. Seed initial data if tables are empty
+        await seedInitialSupabaseData({
+          settings,
+          classes,
+          teachers,
+          users,
+          students,
+          attendance,
+        });
+
+        // 2. Fetch all latest tables from Supabase
+        const [cloudSettings, cloudStudents, cloudAttendance, cloudClasses, cloudTeachers, cloudUsers] =
+          await Promise.all([
+            fetchSupabaseSettings(),
+            fetchSupabaseStudents(),
+            fetchSupabaseAttendance(),
+            fetchSupabaseClasses(),
+            fetchSupabaseTeachers(),
+            fetchSupabaseUsers(),
+          ]);
+
+        if (cloudSettings) setSettings(cloudSettings);
+        if (cloudStudents && cloudStudents.length > 0) setStudents(cloudStudents);
+        if (cloudAttendance && cloudAttendance.length > 0) setAttendance(cloudAttendance);
+        if (cloudClasses && cloudClasses.length > 0) setClasses(cloudClasses);
+        if (cloudTeachers && cloudTeachers.length > 0) setTeachers(cloudTeachers);
+        if (cloudUsers && cloudUsers.length > 0) setUsers(cloudUsers);
+
+        setIsCloudConnected(true);
+      } else {
+        setCloudProvider('firestore');
+        // Firestore sync
+        await seedInitialFirestoreData({
+          settings,
+          classes,
+          teachers,
+          users,
+          students,
+          attendance,
+        });
+
+        const cloudSettings = await fetchCloudSettings();
+        if (cloudSettings) setSettings(cloudSettings);
+        setIsCloudConnected(true);
+      }
+    } catch (err) {
+      console.warn('[Cloud Sync] Sync warning:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [settings, classes, teachers, users, students, attendance]);
+
+  useEffect(() => {
+    let unsubs: (() => void)[] = [];
+
+    const setupSubscriptions = async () => {
+      try {
+        await syncWithCloud();
+
+        if (isSupabaseConfigured) {
+          // Supabase Real-time Channel
+          const unsubSupabase = subscribeSupabaseChanges({
+            onSettingsChange: (newSet) => setSettings(newSet),
+            onStudentChange: async () => {
+              const res = await fetchSupabaseStudents();
+              if (res) setStudents(res);
+            },
+            onAttendanceChange: async () => {
+              const res = await fetchSupabaseAttendance();
+              if (res) setAttendance(res);
+            },
+            onClassChange: async () => {
+              const res = await fetchSupabaseClasses();
+              if (res) setClasses(res);
+            },
+            onTeacherChange: async () => {
+              const res = await fetchSupabaseTeachers();
+              if (res) setTeachers(res);
+            },
+            onUserChange: async () => {
+              const res = await fetchSupabaseUsers();
+              if (res) setUsers(res);
+            },
+          });
+          unsubs.push(unsubSupabase);
+        } else {
+          // Firestore Subscriptions
+          const unsubStudents = subscribeCloudStudents((cloudStudents) => {
+            if (cloudStudents && cloudStudents.length > 0) setStudents(cloudStudents);
+            setIsCloudConnected(true);
+          }, () => setIsCloudConnected(false));
+          unsubs.push(unsubStudents);
+
+          const unsubClasses = subscribeCloudClasses((cloudClasses) => {
+            if (cloudClasses && cloudClasses.length > 0) setClasses(cloudClasses);
+          });
+          unsubs.push(unsubClasses);
+
+          const unsubTeachers = subscribeCloudTeachers((cloudTeachers) => {
+            if (cloudTeachers && cloudTeachers.length > 0) setTeachers(cloudTeachers);
+          });
+          unsubs.push(unsubTeachers);
+
+          const unsubUsers = subscribeCloudUsers((cloudUsers) => {
+            if (cloudUsers && cloudUsers.length > 0) setUsers(cloudUsers);
+          });
+          unsubs.push(unsubUsers);
+
+          const unsubAttendance = subscribeCloudAttendance((cloudAttendance) => {
+            if (cloudAttendance && cloudAttendance.length > 0) setAttendance(cloudAttendance);
+          });
+          unsubs.push(unsubAttendance);
+        }
+      } catch (err) {
+        console.warn('[Cloud Sync] Real-time subscription error:', err);
+      }
+    };
+
+    setupSubscriptions();
+
+    return () => {
+      unsubs.forEach((unsub) => {
+        try {
+          unsub();
+        } catch {
+          // ignore
+        }
+      });
+    };
+  }, []);
 
   // Authentication Logic (Supports both ADMIN & GURU / Wali Kelas)
   const login = (username: string, password: string) => {
@@ -531,6 +742,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
 
         setAttendance((prev) => [newRecord, ...prev]);
+        saveCloudAttendance(newRecord);
+        saveSupabaseAttendance(newRecord);
 
         if (settings.soundEnabled) {
           if (finalStatus === 'TERLAMBAT') {
@@ -577,19 +790,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           };
 
           setAttendance((prev) => [newRecord, ...prev]);
+          saveCloudAttendance(newRecord);
+          saveSupabaseAttendance(newRecord);
         } else {
+          const updatedRec: AttendanceRecord = {
+            ...existingToday,
+            timeOut: timeStr,
+            type: 'pulang',
+            notes: (existingToday.notes || '') + ` | Pulang: ${timeStr}`,
+          };
           setAttendance((prev) =>
             prev.map((rec) =>
-              rec.id === existingToday.id
-                ? {
-                    ...rec,
-                    timeOut: timeStr,
-                    type: 'pulang',
-                    notes: (rec.notes || '') + ` | Pulang: ${timeStr}`,
-                  }
-                : rec
+              rec.id === existingToday.id ? updatedRec : rec
             )
           );
+          saveCloudAttendance(updatedRec);
+          saveSupabaseAttendance(updatedRec);
         }
 
         if (settings.soundEnabled) playSuccessChime();
@@ -647,20 +863,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
 
       if (existing) {
+        const updatedRec: AttendanceRecord = {
+          ...existing,
+          status,
+          type,
+          method: 'MANUAL',
+          notes: notes || `Diperbarui manual (${status})`,
+          timeIn: status === 'HADIR' || status === 'TERLAMBAT' ? existing.timeIn || timeStr : undefined,
+        };
         setAttendance((prev) =>
           prev.map((r) =>
-            r.id === existing.id
-              ? {
-                  ...r,
-                  status,
-                  type,
-                  method: 'MANUAL',
-                  notes: notes || `Diperbarui manual (${status})`,
-                  timeIn: status === 'HADIR' || status === 'TERLAMBAT' ? r.timeIn || timeStr : undefined,
-                }
-              : r
+            r.id === existing.id ? updatedRec : r
           )
         );
+        saveCloudAttendance(updatedRec);
+        saveSupabaseAttendance(updatedRec);
         showSuccessToast(`Presensi ${student.name} berhasil diperbarui ke ${status}`);
         return true;
       }
@@ -681,6 +898,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
 
       setAttendance((prev) => [newRecord, ...prev]);
+      saveCloudAttendance(newRecord);
+      saveSupabaseAttendance(newRecord);
 
       if (settings.soundEnabled) playSuccessChime();
 
@@ -699,6 +918,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteAttendanceRecord = useCallback((id: string) => {
     setAttendance((prev) => prev.filter((a) => a.id !== id));
+    deleteCloudAttendance(id);
+    deleteSupabaseAttendance(id);
     showSuccessToast('Data presensi berhasil dihapus.');
   }, []);
 
@@ -724,6 +945,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createdAt: getTodayDateString(),
       };
       setStudents((prev) => [newStudent, ...prev]);
+      saveCloudStudent(newStudent);
+      saveSupabaseStudent(newStudent);
       showSuccessToast(`Siswa ${newStudent.name} berhasil ditambahkan!`);
       return newStudent;
     },
@@ -741,6 +964,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }));
 
       setStudents((prev) => [...formatted, ...prev]);
+      batchSaveCloudStudents(formatted);
+      batchSaveSupabaseStudents(formatted);
       showSuccessToast(`Berhasil mengimpor ${formatted.length} data siswa dari Excel!`);
       return formatted.length;
     },
@@ -766,6 +991,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setStudents((prev) =>
         prev.map((s) => (s.id === updated.id ? updated : s))
       );
+      saveCloudStudent(updated);
+      saveSupabaseStudent(updated);
       showSuccessToast(`Data siswa ${updated.name} berhasil diperbarui.`);
     },
     [students]
@@ -773,6 +1000,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteStudent = useCallback((id: string) => {
     setStudents((prev) => prev.filter((s) => s.id !== id));
+    deleteCloudStudent(id);
+    deleteSupabaseStudent(id);
     showSuccessToast('Data siswa berhasil dihapus.');
   }, []);
 
@@ -783,17 +1012,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `c-${Date.now()}`,
     };
     setClasses((prev) => [...prev, newClass]);
+    saveCloudClass(newClass);
+    saveSupabaseClass(newClass);
     showSuccessToast(`Kelas ${newClass.name} berhasil ditambahkan.`);
     return newClass;
   }, []);
 
   const updateClass = useCallback((updated: ClassRoom) => {
     setClasses((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+    saveCloudClass(updated);
+    saveSupabaseClass(updated);
     showSuccessToast(`Data kelas ${updated.name} berhasil diperbarui.`);
   }, []);
 
   const deleteClass = useCallback((id: string) => {
     setClasses((prev) => prev.filter((c) => c.id !== id));
+    deleteCloudClass(id);
+    deleteSupabaseClass(id);
     showSuccessToast('Kelas berhasil dihapus.');
   }, []);
 
@@ -804,17 +1039,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `t-${Date.now()}`,
     };
     setTeachers((prev) => [...prev, newTeacher]);
+    saveCloudTeacher(newTeacher);
+    saveSupabaseTeacher(newTeacher);
     showSuccessToast(`Wali kelas ${newTeacher.name} berhasil ditambahkan.`);
     return newTeacher;
   }, []);
 
   const updateTeacher = useCallback((updated: Teacher) => {
     setTeachers((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    saveCloudTeacher(updated);
+    saveSupabaseTeacher(updated);
     showSuccessToast(`Data wali kelas ${updated.name} berhasil diperbarui.`);
   }, []);
 
   const deleteTeacher = useCallback((id: string) => {
     setTeachers((prev) => prev.filter((t) => t.id !== id));
+    deleteCloudTeacher(id);
+    deleteSupabaseTeacher(id);
     showSuccessToast('Wali kelas berhasil dihapus.');
   }, []);
 
@@ -825,17 +1066,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: userData.id || `u-${Date.now()}`,
     };
     setUsers((prev) => [newUser, ...prev]);
+    saveCloudUser(newUser);
+    saveSupabaseUser(newUser);
     showSuccessToast(`Akun user [${newUser.username}] berhasil dibuat.`);
     return newUser;
   }, []);
 
   const updateUser = useCallback((updated: UserAccount) => {
     setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+    saveCloudUser(updated);
+    saveSupabaseUser(updated);
     showSuccessToast(`Data akun [${updated.username}] berhasil diperbarui.`);
   }, []);
 
   const deleteUser = useCallback((id: string) => {
     setUsers((prev) => prev.filter((u) => u.id !== id));
+    deleteCloudUser(id);
+    deleteSupabaseUser(id);
     showSuccessToast('Akun user berhasil dihapus.');
   }, []);
 
@@ -844,8 +1091,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       prev.map((u) => {
         if (u.id === id) {
           const nextStatus = u.status === 'AKTIF' ? 'NONAKTIF' : 'AKTIF';
+          const updatedUser = { ...u, status: nextStatus as 'AKTIF' | 'NONAKTIF' };
+          saveCloudUser(updatedUser);
+          saveSupabaseUser(updatedUser);
           showSuccessToast(`Status akun ${u.username} diubah menjadi ${nextStatus}.`);
-          return { ...u, status: nextStatus };
+          return updatedUser;
         }
         return u;
       })
@@ -856,8 +1106,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUsers((prev) =>
       prev.map((u) => {
         if (u.id === id) {
+          const updatedUser = { ...u, password: newPassword };
+          saveCloudUser(updatedUser);
+          saveSupabaseUser(updatedUser);
           showSuccessToast(`Password user [${u.username}] berhasil direset ke '${newPassword}'.`);
-          return { ...u, password: newPassword };
+          return updatedUser;
         }
         return u;
       })
@@ -867,6 +1120,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Settings
   const updateSettings = useCallback((newSettings: SchoolSettings) => {
     setSettings(newSettings);
+    saveCloudSettings(newSettings);
+    saveSupabaseSettings(newSettings);
     showSuccessToast('Pengaturan sistem berhasil disimpan.');
   }, []);
 
@@ -877,6 +1132,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUsers(initialUsers);
     setStudents(initialStudents);
     setAttendance(getSampleAttendanceRecords());
+    saveCloudSettings(initialSettings);
+    saveSupabaseSettings(initialSettings);
     showSuccessToast('Semua data berhasil direset ke pengaturan awal.');
   }, []);
 
@@ -897,6 +1154,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsLoginModalOpen,
         activeTab,
         setActiveTab,
+        isCloudConnected,
+        isSyncing,
+        cloudProvider,
+        syncWithCloud,
+        updateSupabaseConfig,
         students,
         classes,
         teachers,

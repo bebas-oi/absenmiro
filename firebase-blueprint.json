@@ -1,0 +1,144 @@
+{
+  "$schema": "https://raw.githubusercontent.com/firebase/firebase-tools/master/schema/blueprint.schema.json",
+  "entities": {
+    "settings": {
+      "title": "Settings",
+      "description": "School operational schedule and kiosk settings",
+      "type": "object",
+      "properties": {
+        "schoolName": { "type": "string" },
+        "subTitle": { "type": "string" },
+        "address": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "headmasterName": { "type": "string" },
+        "headmasterNip": { "type": "string" },
+        "timeInStart": { "type": "string" },
+        "timeInLate": { "type": "string" },
+        "timeInEnd": { "type": "string" },
+        "timeOutStandard": { "type": "string" },
+        "timeOutFriday": { "type": "string" },
+        "autoMode": { "type": "boolean" },
+        "soundEnabled": { "type": "boolean" },
+        "kioskCooldownSeconds": { "type": "number" },
+        "kioskManualPin": { "type": "string" }
+      }
+    },
+    "classes": {
+      "title": "ClassRoom",
+      "description": "School classroom definitions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "level": { "type": "number" },
+        "room": { "type": "string" },
+        "academicYear": { "type": "string" },
+        "homeroomTeacher": { "type": "string" },
+        "totalStudents": { "type": "number" }
+      },
+      "required": ["id", "name"]
+    },
+    "teachers": {
+      "title": "Teacher",
+      "description": "Teachers and Homeroom teachers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nip": { "type": "string" },
+        "name": { "type": "string" },
+        "assignedClass": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "users": {
+      "title": "UserAccount",
+      "description": "User accounts with role-based access control",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "username": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "assignedClass": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "status": { "type": "string" },
+        "password": { "type": "string" }
+      },
+      "required": ["id", "username", "role"]
+    },
+    "students": {
+      "title": "Student",
+      "description": "Student profiles and RFID cards",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nis": { "type": "string" },
+        "nisn": { "type": "string" },
+        "name": { "type": "string" },
+        "className": { "type": "string" },
+        "rfidUid": { "type": "string" },
+        "gender": { "type": "string" },
+        "parentPhone": { "type": "string" },
+        "parentName": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "nis", "name", "className", "rfidUid"]
+    },
+    "attendance": {
+      "title": "AttendanceRecord",
+      "description": "Student daily attendance log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "nis": { "type": "string" },
+        "studentName": { "type": "string" },
+        "className": { "type": "string" },
+        "date": { "type": "string" },
+        "timeIn": { "type": "string" },
+        "timeOut": { "type": "string" },
+        "type": { "type": "string" },
+        "status": { "type": "string" },
+        "method": { "type": "string" },
+        "notes": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["id", "studentId", "date", "status"]
+    }
+  },
+  "firestore": {
+    "collections": {
+      "settings": {
+        "entity": "settings",
+        "description": "School operational settings"
+      },
+      "classes": {
+        "entity": "classes",
+        "description": "Classes in the school"
+      },
+      "teachers": {
+        "entity": "teachers",
+        "description": "Teacher profiles"
+      },
+      "users": {
+        "entity": "users",
+        "description": "Staff user accounts"
+      },
+      "students": {
+        "entity": "students",
+        "description": "Student master data"
+      },
+      "attendance": {
+        "entity": "attendance",
+        "description": "Attendance transaction logs"
+      }
+    }
+  }
+}
