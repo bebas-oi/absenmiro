@@ -1,0 +1,6 @@
+{
+  "name": "Absensi Siswa MI Rowosari RFID",
+  "description": "Aplikasi Presensi Siswa MI Rowosari berbasis Scanner Kartu RFID, Absen Manual, Dashboard Real-time, Laporan Multi-periode (Excel/PDF), dan Cetak Kartu Siswa",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
