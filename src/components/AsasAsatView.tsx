@@ -84,7 +84,7 @@ export const AsasAsatView: React.FC = () => {
   } = useApp();
 
   const [examType, setExamType] = useState<ExamType>('ASAS');
-  const [subTab, setSubTab] = useState<'schedule' | 'cards' | 'instrument'>('schedule');
+  const [subTab, setSubTab] = useState<'schedule' | 'cards' | 'instrument' | 'desk-numbers'>('schedule');
 
   // Schedule state
   const [selectedClass, setSelectedClass] = useState<string>(
@@ -342,6 +342,288 @@ export const AsasAsatView: React.FC = () => {
     `;
 
     printHtmlDocument(html);
+  };
+
+  // =========================================================================
+  // DESK NUMBER PRINT & PREVIEW HELPERS (NOMOR MEJA ASAS & ASAT)
+  // =========================================================================
+  const [deskClass, setDeskClass] = useState<string>(
+    isGuru && currentUser?.assignedClass
+      ? currentUser.assignedClass
+      : accessibleClasses[0]?.name || 'Kelas 1A'
+  );
+
+  const deskStudentsList = useMemo(() => {
+    return accessibleStudents.filter(
+      (s) => s.className === deskClass && s.status === 'aktif'
+    );
+  }, [accessibleStudents, deskClass]);
+
+  const handlePrintDeskNumbers = () => {
+    if (deskStudentsList.length === 0) {
+      showWarningToast(`Tidak ada siswa aktif untuk kelas ${deskClass}.`);
+      return;
+    }
+
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const logoUrl = `${origin}${MI_LOGO_PATH}`;
+    const roomName = getRoomForClass(deskClass);
+
+    const pagesHtml: string[] = [];
+    for (let i = 0; i < deskStudentsList.length; i += 6) {
+      const chunk = deskStudentsList.slice(i, i + 6);
+      const chunkCards = chunk
+        .map((student, offset) => {
+          const deskNo = i + offset + 1;
+          const deskNoStr = String(deskNo).padStart(2, '0');
+          const participantNo = getParticipantNumber(student, i + offset);
+
+          return `
+          <div class="desk-card">
+            <div class="desk-kop">
+              <div class="desk-logo">
+                <img src="${logoUrl}" alt="Logo" />
+              </div>
+              <div class="desk-kop-text">
+                <div class="school-sub">PANITIA ${examType} &bull; TA ${configDraft.academicYear}</div>
+                <div class="school-name">${settings.schoolName}</div>
+              </div>
+            </div>
+            
+            <div class="desk-body">
+              <div class="desk-number-box">
+                <div class="desk-label">NOMOR MEJA UJIAN</div>
+                <div class="desk-value">${deskNoStr}</div>
+              </div>
+              
+              <div class="desk-student-info">
+                <div class="info-row">
+                  <span class="label">No Peserta</span>
+                  <span class="val">: <strong>${participantNo}</strong></span>
+                </div>
+                <div class="info-row">
+                  <span class="label">Nama Siswa</span>
+                  <span class="val name">: <strong>${student.name}</strong></span>
+                </div>
+                <div class="info-row">
+                  <span class="label">NIS / NISN</span>
+                  <span class="val">: ${student.nis || '-'}${student.nisn ? ` / ${student.nisn}` : ''}</span>
+                </div>
+                <div class="info-row">
+                  <span class="label">Kelas / Ruang</span>
+                  <span class="val">: ${student.className} &bull; <strong>${roomName}</strong></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="desk-footer">
+              <span>${configDraft.periodLabel}</span>
+              <span>${examType} ${configDraft.academicYear}</span>
+            </div>
+          </div>
+        `;
+        })
+        .join('');
+
+      const pageNum = Math.floor(i / 6) + 1;
+      const totalPages = Math.ceil(deskStudentsList.length / 6);
+
+      pagesHtml.push(`
+        <div class="f4-page">
+          <div class="f4-screen-label">Lembar Nomor Meja #${pageNum} dari ${totalPages} &bull; Kelas ${deskClass}</div>
+          <div class="desk-grid">
+            ${chunkCards}
+          </div>
+        </div>
+      `);
+    }
+
+    const fullHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <base href="${origin}/" />
+        <title>Cetak Nomor Meja ${examType} ${deskClass} - ${settings.schoolName}</title>
+        <style>
+          @page {
+            size: 215mm 330mm;
+            margin: 10mm;
+          }
+          *, *::before, *::after {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+          body {
+            font-family: Arial, Helvetica, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #e2e8f0;
+            color: #0f172a;
+          }
+          .f4-page {
+            width: 195mm;
+            min-height: 306mm;
+            margin: 10mm auto;
+            background: #ffffff;
+            padding: 8mm;
+            box-shadow: 0 4px 20px rgba(15, 23, 42, 0.12);
+            page-break-after: always;
+            break-after: page;
+          }
+          .f4-screen-label {
+            font-size: 10px;
+            font-weight: 800;
+            color: #64748b;
+            text-transform: uppercase;
+            text-align: center;
+            margin-bottom: 6px;
+          }
+          .desk-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 92mm);
+            gap: 6mm 8mm;
+            justify-content: center;
+            align-content: start;
+          }
+          .desk-card {
+            width: 92mm;
+            height: 94mm;
+            border: 2px dashed #0f172a;
+            border-radius: 3.5mm;
+            background: #ffffff;
+            padding: 3.5mm 4mm;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          .desk-kop {
+            display: flex;
+            align-items: center;
+            gap: 2.5mm;
+            border-bottom: 2px solid #065f46;
+            padding-bottom: 2mm;
+          }
+          .desk-logo {
+            width: 10mm;
+            height: 10mm;
+            flex-shrink: 0;
+          }
+          .desk-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+          }
+          .desk-kop-text {
+            flex: 1;
+            text-align: center;
+            line-height: 1.15;
+          }
+          .school-sub {
+            font-size: 6.5pt;
+            font-weight: 800;
+            color: #047857;
+            text-transform: uppercase;
+          }
+          .school-name {
+            font-size: 9pt;
+            font-weight: 900;
+            color: #0f172a;
+            text-transform: uppercase;
+          }
+          .desk-body {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 3mm;
+            padding: 2mm 0;
+          }
+          .desk-number-box {
+            text-align: center;
+            border: 2.5px solid #065f46;
+            background: #f0fdf4;
+            border-radius: 2.5mm;
+            padding: 2.5mm 6mm;
+            width: 100%;
+          }
+          .desk-label {
+            font-size: 7pt;
+            font-weight: 900;
+            color: #065f46;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            margin-bottom: 0.5mm;
+          }
+          .desk-value {
+            font-size: 26pt;
+            font-weight: 900;
+            font-family: monospace;
+            color: #065f46;
+            line-height: 1;
+          }
+          .desk-student-info {
+            width: 100%;
+            font-size: 8.5pt;
+            display: flex;
+            flex-direction: column;
+            gap: 1.2mm;
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 2mm;
+            padding: 2.5mm 3mm;
+          }
+          .info-row {
+            display: flex;
+            align-items: flex-start;
+          }
+          .info-row .label {
+            width: 24mm;
+            font-weight: 700;
+            color: #475569;
+            flex-shrink: 0;
+          }
+          .info-row .val {
+            flex: 1;
+            color: #0f172a;
+          }
+          .info-row .val.name {
+            font-size: 9.5pt;
+            text-transform: uppercase;
+          }
+          .desk-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 7pt;
+            font-weight: 800;
+            color: #64748b;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 1.5mm;
+            text-transform: uppercase;
+          }
+          @media print {
+            body { background: #ffffff !important; }
+            .f4-screen-label { display: none !important; }
+            .f4-page {
+              margin: 0 auto;
+              box-shadow: none;
+              padding: 0;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        ${pagesHtml.join('')}
+      </body>
+      </html>
+    `;
+
+    printHtmlDocument(fullHtml);
   };
 
   // =========================================================================
@@ -1079,6 +1361,18 @@ export const AsasAsatView: React.FC = () => {
               <ClipboardCheck className="w-4 h-4 text-emerald-600" />
               <span>Instrumen & Administrasi {examType}</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setSubTab('desk-numbers')}
+              className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center space-x-2 transition-all cursor-pointer ${
+                subTab === 'desk-numbers'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <MapPin className="w-4 h-4 text-emerald-600" />
+              <span>Cetak Nomor Meja</span>
+            </button>
           </div>
 
           <div className="text-xs font-bold text-slate-500 flex items-center space-x-2">
@@ -1790,6 +2084,130 @@ export const AsasAsatView: React.FC = () => {
           examType={examType}
           onNavigateSubTab={(target) => setSubTab(target)}
         />
+      )}
+
+      {subTab === 'desk-numbers' && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center space-x-2">
+                <GraduationCap className="w-5 h-5 text-emerald-600" />
+                <span className="text-xs font-black uppercase tracking-wider text-slate-700">
+                  Pilih Kelas:
+                </span>
+              </div>
+              <select
+                value={deskClass}
+                onChange={(e) => setDeskClass(e.target.value)}
+                className="px-4 py-2.5 rounded-2xl border border-slate-200 font-bold text-sm bg-slate-50 text-slate-800 focus:outline-none focus:border-emerald-600 cursor-pointer"
+              >
+                {accessibleClasses.map((c) => (
+                  <option key={c.id} value={c.name}>
+                    {c.name} {c.level ? `(Tingkat ${c.level})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold text-slate-500">
+                Total Siswa Aktif: <strong className="text-slate-900">{deskStudentsList.length}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={handlePrintDeskNumbers}
+                className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-700 to-teal-800 text-white font-black text-xs uppercase tracking-wider shadow-md hover:from-emerald-800 hover:to-teal-900 flex items-center space-x-2 cursor-pointer transition-all"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Cetak Nomor Meja {deskClass}</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs">
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
+              <div>
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wide">
+                  Pratinjau Nomor Meja Ujian • {deskClass}
+                </h3>
+                <p className="text-xs text-slate-500 font-medium">
+                  Menampilkan kartu nomor meja untuk setiap siswa yang akan ditempel di meja peserta {examType}.
+                </p>
+              </div>
+              <span className="px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full text-xs font-black">
+                Ruang: {getRoomForClass(deskClass)}
+              </span>
+            </div>
+
+            {deskStudentsList.length === 0 ? (
+              <div className="py-16 text-center text-slate-400 font-medium text-sm">
+                Tidak ada siswa aktif di kelas {deskClass}.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {deskStudentsList.map((student, idx) => {
+                  const deskNo = String(idx + 1).padStart(2, '0');
+                  const participantNo = getParticipantNumber(student, idx);
+                  return (
+                    <div
+                      key={student.id}
+                      className="border-2 border-dashed border-slate-300 rounded-2xl p-4 bg-slate-50 flex flex-col justify-between shadow-xs hover:border-emerald-500 transition-all"
+                    >
+                      <div>
+                        <div className="flex items-center space-x-3 border-b border-slate-200 pb-3 mb-3">
+                          <div className="w-10 h-10 rounded-xl bg-white p-1 border border-slate-200 shadow-xs flex items-center justify-center shrink-0">
+                            <img src={MI_LOGO_PATH} alt="Logo" className="w-full h-full object-contain" />
+                          </div>
+                          <div>
+                            <div className="text-[9px] font-extrabold text-emerald-700 uppercase tracking-wider">
+                              PANITIA {examType} • TA {configDraft.academicYear}
+                            </div>
+                            <div className="text-xs font-black text-slate-900 uppercase">
+                              {settings.schoolName}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-center bg-emerald-50 border-2 border-emerald-600 rounded-xl py-3 px-4 my-3">
+                          <div className="text-[10px] font-black text-emerald-700 uppercase tracking-widest mb-0.5">
+                            NOMOR MEJA
+                          </div>
+                          <div className="text-3xl font-black font-mono text-emerald-800">
+                            {deskNo}
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5 text-xs text-slate-700 bg-white p-3 rounded-xl border border-slate-200">
+                          <div className="flex justify-between">
+                            <span className="text-slate-500 font-medium">No Peserta:</span>
+                            <span className="font-bold font-mono text-slate-900">{participantNo}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-500 font-medium">Nama:</span>
+                            <span className="font-black text-slate-900 uppercase">{student.name}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-500 font-medium">NIS/NISN:</span>
+                            <span className="font-bold text-slate-800">{student.nis || '-'}{student.nisn ? ` / ${student.nisn}` : ''}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-500 font-medium">Kelas / Ruang:</span>
+                            <span className="font-bold text-emerald-800">{student.className} • {getRoomForClass(deskClass)}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase pt-3 mt-3 border-t border-slate-200">
+                        <span>{configDraft.periodLabel}</span>
+                        <span>{examType}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* ===================================================================== */}
