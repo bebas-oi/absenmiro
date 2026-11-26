@@ -670,8 +670,8 @@ function generateDefaultExamSchedules(): ExamScheduleItem[] {
 
   classesList.forEach((cls, cIdx) => {
     asasDays.forEach((d, dIdx) => {
-      const s1Name = d.s1 === 'SKI / Seni Budaya' ? (cls.grade >= 3 ? 'Sejarah Kebudayaan Islam' : 'Seni Budaya & Prakarya') : d.s1;
-      const s2Name = d.s2 === 'IPAS / PJOK' ? (cls.grade >= 3 ? 'IPAS' : 'PJOK') : d.s2;
+      const s1Name = d.s1 === 'SKI / Seni Budaya' ? (Number(cls.grade) >= 3 ? 'Sejarah Kebudayaan Islam' : 'Seni Budaya & Prakarya') : d.s1;
+      const s2Name = d.s2 === 'IPAS / PJOK' ? (Number(cls.grade) >= 3 ? 'IPAS' : 'PJOK') : d.s2;
 
       items.push({
         id: `ex-asas-${cIdx}-${dIdx}-1`,
@@ -701,8 +701,8 @@ function generateDefaultExamSchedules(): ExamScheduleItem[] {
     });
 
     asatDays.forEach((d, dIdx) => {
-      const s1Name = d.s1 === 'SKI / Seni Budaya' ? (cls.grade >= 3 ? 'Sejarah Kebudayaan Islam' : 'Seni Budaya & Prakarya') : d.s1;
-      const s2Name = d.s2 === 'IPAS / Bahasa Jawa' ? (cls.grade >= 3 ? 'IPAS' : 'Bahasa Jawa') : d.s2;
+      const s1Name = d.s1 === 'SKI / Seni Budaya' ? (Number(cls.grade) >= 3 ? 'Sejarah Kebudayaan Islam' : 'Seni Budaya & Prakarya') : d.s1;
+      const s2Name = d.s2 === 'IPAS / Bahasa Jawa' ? (Number(cls.grade) >= 3 ? 'IPAS' : 'Bahasa Jawa') : d.s2;
 
       items.push({
         id: `ex-asat-${cIdx}-${dIdx}-1`,

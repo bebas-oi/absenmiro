@@ -55,7 +55,7 @@ export interface Student {
 export interface ClassRoom {
   id: string;
   name: string;
-  grade: number; // 1 - 6
+  grade: number | string; // 1 - 6 or custom level
   academicYear: string;
   homeroomTeacherId?: string;
 }

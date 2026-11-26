@@ -25,7 +25,7 @@ export const TeachersView: React.FC = () => {
   const [form, setForm] = useState({
     name: '',
     nip: '',
-    assignedClass: classes[0]?.name || 'Kelas 1A',
+    assignedClass: classes[0]?.name || '',
     phone: '',
     email: '',
     gender: 'L' as 'L' | 'P',
@@ -37,7 +37,7 @@ export const TeachersView: React.FC = () => {
     setForm({
       name: '',
       nip: '',
-      assignedClass: classes[0]?.name || 'Kelas 1A',
+      assignedClass: classes[0]?.name || '',
       phone: '',
       email: '',
       gender: 'L',
@@ -50,8 +50,8 @@ export const TeachersView: React.FC = () => {
     setEditingTeacher(t);
     setForm({
       name: t.name,
-      nip: t.nip,
-      assignedClass: t.assignedClass,
+      nip: t.nip === '-' ? '' : t.nip,
+      assignedClass: t.assignedClass || classes[0]?.name || '',
       phone: t.phone,
       email: t.email,
       gender: t.gender,
@@ -62,18 +62,31 @@ export const TeachersView: React.FC = () => {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.nip) {
-      showWarningToast('Nama guru dan NIP wajib diisi!');
+    if (!form.name.trim()) {
+      showWarningToast('Nama lengkap guru wajib diisi!');
       return;
     }
+    if (classes.length > 0 && !form.assignedClass) {
+      showWarningToast('Pilih rombel kelas yang diampu!');
+      return;
+    }
+
+    const payload = {
+      ...form,
+      name: form.name.trim(),
+      nip: form.nip.trim() || '-',
+      phone: form.phone.trim(),
+      email: form.email.trim(),
+      photoUrl: form.photoUrl.trim(),
+    };
 
     if (editingTeacher) {
       updateTeacher({
         ...editingTeacher,
-        ...form,
+        ...payload,
       });
     } else {
-      addTeacher(form);
+      addTeacher(payload);
     }
 
     setIsModalOpen(false);
@@ -142,8 +155,10 @@ export const TeachersView: React.FC = () => {
             </div>
           ) : (
             filtered.map((t) => {
-              const cleanPhone = t.phone.replace(/[^0-9]/g, '');
-              const waLink = cleanPhone ? `https://wa.me/62${cleanPhone.startsWith('0') ? cleanPhone.slice(1) : cleanPhone}` : '#';
+              const cleanPhone = (t.phone || '').replace(/[^0-9]/g, '');
+              const waLink = cleanPhone
+                ? `https://wa.me/62${cleanPhone.startsWith('0') ? cleanPhone.slice(1) : cleanPhone}`
+                : '#';
 
               return (
                 <div
@@ -166,10 +181,10 @@ export const TeachersView: React.FC = () => {
                             {t.name}
                           </div>
                           <div className="text-[11px] font-mono font-bold text-slate-500 mt-0.5">
-                            NIP: {t.nip}
+                            NIP/NUPTK: {t.nip && t.nip !== '-' ? t.nip : '-'}
                           </div>
                           <span className="inline-block mt-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-wider">
-                            {t.assignedClass}
+                            {t.assignedClass || 'Belum Pilih Rombel'}
                           </span>
                         </div>
                       </div>
@@ -195,25 +210,32 @@ export const TeachersView: React.FC = () => {
                     <div className="mt-4 pt-3 border-t border-slate-200 space-y-2 text-xs text-slate-700 font-semibold">
                       <div className="flex items-center space-x-2">
                         <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        <span className="font-mono">{t.phone}</span>
+                        <span className="font-mono">{t.phone || '-'}</span>
                       </div>
                       <div className="flex items-center space-x-2">
                         <Mail className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-                        <span className="truncate">{t.email}</span>
+                        <span className="truncate">{t.email || '-'}</span>
                       </div>
                     </div>
                   </div>
 
                   <div className="mt-4 pt-3 border-t border-slate-200">
-                    <a
-                      href={waLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full py-2.5 px-3 rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300 font-black uppercase tracking-wider text-xs flex items-center justify-center space-x-2 transition-colors cursor-pointer"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5 text-emerald-700" />
-                      <span>Kirim Pesan WhatsApp</span>
-                    </a>
+                    {cleanPhone ? (
+                      <a
+                        href={waLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full py-2.5 px-3 rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300 font-black uppercase tracking-wider text-xs flex items-center justify-center space-x-2 transition-colors cursor-pointer"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5 text-emerald-700" />
+                        <span>Kirim Pesan WhatsApp</span>
+                      </a>
+                    ) : (
+                      <div className="w-full py-2.5 px-3 rounded-xl bg-slate-100 text-slate-400 border border-slate-200 font-black uppercase tracking-wider text-xs flex items-center justify-center space-x-2">
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span>Nomor WA Belum Diisi</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -256,15 +278,14 @@ export const TeachersView: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-1">
-                    NIP / NUPTK *
+                    NIP / NUPTK <span className="text-slate-400 font-semibold">(Opsional)</span>
                   </label>
                   <input
                     type="text"
-                    required
-                    placeholder="Contoh: 198402152009122002"
+                    placeholder="Kosongkan jika belum ada"
                     value={form.nip}
                     onChange={(e) => setForm({ ...form, nip: e.target.value })}
                     className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-hidden font-mono font-bold"
@@ -273,26 +294,38 @@ export const TeachersView: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-1">
-                    Rombel Kelas yang Diampu
+                    Rombel Kelas yang Diampu *
                   </label>
                   <select
                     value={form.assignedClass}
                     onChange={(e) => setForm({ ...form, assignedClass: e.target.value })}
-                    className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-hidden font-bold"
+                    className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-hidden font-bold bg-white cursor-pointer"
                   >
+                    <option value="">-- Pilih Rombel --</option>
                     {classes.map((cls) => (
                       <option key={cls.id} value={cls.name}>
-                        {cls.name}
+                        {cls.name} (Tingkat {cls.grade})
                       </option>
                     ))}
+                    {form.assignedClass &&
+                      !classes.some((c) => c.name === form.assignedClass) && (
+                        <option value={form.assignedClass}>
+                          {form.assignedClass} (Belum di Menu Rombel)
+                        </option>
+                      )}
                   </select>
+                  {classes.length === 0 && (
+                    <p className="text-[10px] text-amber-700 font-semibold mt-1">
+                      Belum ada rombel. Tambahkan rombel terlebih dahulu di Menu Data Siswa.
+                    </p>
+                  )}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-1">
-                    No WhatsApp / HP *
+                    No WhatsApp / HP <span className="text-slate-400 font-semibold">(Opsional)</span>
                   </label>
                   <input
                     type="text"

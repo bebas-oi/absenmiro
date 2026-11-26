@@ -114,7 +114,7 @@ export const StudentsClassesView: React.FC = () => {
   const [editingClass, setEditingClass] = useState<ClassRoom | null>(null);
   const [classForm, setClassForm] = useState({
     name: '',
-    grade: 1,
+    grade: '1',
     academicYear: '2026/2027',
     homeroomTeacherId: '',
   });
@@ -279,7 +279,7 @@ export const StudentsClassesView: React.FC = () => {
     setEditingClass(null);
     setClassForm({
       name: '',
-      grade: 1,
+      grade: '1',
       academicYear: settings.activeAcademicYear || '2026/2027',
       homeroomTeacherId: '',
     });
@@ -291,7 +291,7 @@ export const StudentsClassesView: React.FC = () => {
     setEditingClass(cls);
     setClassForm({
       name: cls.name,
-      grade: cls.grade,
+      grade: String(cls.grade ?? '1'),
       academicYear: cls.academicYear || settings.activeAcademicYear || '2026/2027',
       homeroomTeacherId: cls.homeroomTeacherId || homeroom?.id || '',
     });
@@ -301,10 +301,19 @@ export const StudentsClassesView: React.FC = () => {
   const handleSaveClass = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanName = classForm.name.trim();
+    const rawGrade = String(classForm.grade || '').trim();
     if (!cleanName) {
       showWarningToast('Nama rombel wajib diisi (contoh: Kelas 1A)!');
       return;
     }
+    if (!rawGrade) {
+      showWarningToast('Tingkat kelas wajib diisi!');
+      return;
+    }
+
+    const normalizedGrade: number | string = /^\d+$/.test(rawGrade)
+      ? Number(rawGrade)
+      : rawGrade;
 
     const duplicate = classes.find(
       (c) =>
@@ -321,9 +330,9 @@ export const StudentsClassesView: React.FC = () => {
       updateClass({
         ...editingClass,
         name: cleanName,
-        grade: Number(classForm.grade) || 1,
+        grade: normalizedGrade,
         academicYear: classForm.academicYear.trim() || '2026/2027',
-        homeroomTeacherId: classForm.homeroomTeacherId || undefined,
+        homeroomTeacherId: classForm.homeroomTeacherId || '',
       });
       if (selectedClassFilter === prevName) {
         setSelectedClassFilter(cleanName);
@@ -331,9 +340,9 @@ export const StudentsClassesView: React.FC = () => {
     } else {
       addClass({
         name: cleanName,
-        grade: Number(classForm.grade) || 1,
+        grade: normalizedGrade,
         academicYear: classForm.academicYear.trim() || '2026/2027',
-        homeroomTeacherId: classForm.homeroomTeacherId || undefined,
+        homeroomTeacherId: classForm.homeroomTeacherId || '',
       });
     }
 
@@ -1289,7 +1298,7 @@ export const StudentsClassesView: React.FC = () => {
                         Tahun Ajaran {cls.academicYear}
                       </p>
                     </div>
-                    <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-black shrink-0">
+                    <div className="min-w-10 px-2.5 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-black text-xs shrink-0">
                       {cls.grade}
                     </div>
                   </div>
@@ -2071,22 +2080,43 @@ export const StudentsClassesView: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="block uppercase tracking-wider">Tingkat / Kelas</label>
-                  <select
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="block uppercase tracking-wider">
+                    Tingkat / Kelas <span className="text-rose-600">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    list="custom-grade-suggestions"
+                    placeholder="Contoh: 1, 2, 7, RA, Tahfidz"
                     value={classForm.grade}
                     onChange={(e) =>
-                      setClassForm({ ...classForm, grade: Number(e.target.value) || 1 })
+                      setClassForm({ ...classForm, grade: e.target.value })
                     }
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 cursor-pointer"
-                  >
-                    {[1, 2, 3, 4, 5, 6].map((g) => (
-                      <option key={g} value={g}>
-                        Kelas {g}
-                      </option>
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:bg-white focus:outline-hidden focus:border-emerald-600"
+                  />
+                  <datalist id="custom-grade-suggestions">
+                    {['1', '2', '3', '4', '5', '6', 'RA', '7', '8', '9', 'Tahfidz'].map((opt) => (
+                      <option key={opt} value={opt} />
                     ))}
-                  </select>
+                  </datalist>
+                  <div className="flex flex-wrap gap-1 pt-0.5">
+                    {['1', '2', '3', '4', '5', '6', 'RA'].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setClassForm({ ...classForm, grade: preset })}
+                        className={`px-2 py-0.5 rounded-lg text-[10px] font-black border cursor-pointer transition-colors ${
+                          String(classForm.grade).trim() === preset
+                            ? 'bg-emerald-600 text-white border-emerald-600'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                        }`}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="space-y-1">

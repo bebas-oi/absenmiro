@@ -1224,17 +1224,34 @@ const normalizeSchoolName = (name?: string): string => {
   }, []);
 
   // Class CRUD
-  const addClass = useCallback((clsData: Omit<ClassRoom, 'id'>) => {
-    const newClass: ClassRoom = {
-      ...clsData,
-      id: `c-${Date.now()}`,
-    };
-    setClasses((prev) => [...prev, newClass]);
-    saveCloudClass(newClass);
-    saveSupabaseClass(newClass);
-    showSuccessToast(`Rombel ${newClass.name} berhasil ditambahkan.`);
-    return newClass;
-  }, []);
+  const addClass = useCallback(
+    (clsData: Omit<ClassRoom, 'id'>) => {
+      const newClass: ClassRoom = {
+        ...clsData,
+        name: clsData.name.trim(),
+        id: `c-${Date.now()}`,
+      };
+      setClasses((prev) => [...prev, newClass]);
+      saveCloudClass(newClass);
+      saveSupabaseClass(newClass);
+
+      if (newClass.homeroomTeacherId) {
+        const targetTeacher = teachers.find((t) => t.id === newClass.homeroomTeacherId);
+        if (targetTeacher && targetTeacher.assignedClass !== newClass.name) {
+          const updatedTeacher = { ...targetTeacher, assignedClass: newClass.name };
+          setTeachers((prev) =>
+            prev.map((t) => (t.id === targetTeacher.id ? updatedTeacher : t))
+          );
+          saveCloudTeacher(updatedTeacher);
+          saveSupabaseTeacher(updatedTeacher);
+        }
+      }
+
+      showSuccessToast(`Rombel ${newClass.name} berhasil ditambahkan.`);
+      return newClass;
+    },
+    [teachers]
+  );
 
   const updateClass = useCallback(
     (updated: ClassRoom) => {
@@ -1246,6 +1263,20 @@ const normalizeSchoolName = (name?: string): string => {
       setClasses((prev) => prev.map((c) => (c.id === updated.id ? normalizedUpdated : c)));
       saveCloudClass(normalizedUpdated);
       saveSupabaseClass(normalizedUpdated);
+
+      if (normalizedUpdated.homeroomTeacherId) {
+        const targetTeacher = teachers.find(
+          (t) => t.id === normalizedUpdated.homeroomTeacherId
+        );
+        if (targetTeacher && targetTeacher.assignedClass !== newName) {
+          const updatedTeacher = { ...targetTeacher, assignedClass: newName };
+          setTeachers((prev) =>
+            prev.map((t) => (t.id === targetTeacher.id ? updatedTeacher : t))
+          );
+          saveCloudTeacher(updatedTeacher);
+          saveSupabaseTeacher(updatedTeacher);
+        }
+      }
 
       if (oldName && oldName !== newName) {
         const affectedStudents = students
@@ -1312,31 +1343,88 @@ const normalizeSchoolName = (name?: string): string => {
   }, []);
 
   // Teacher CRUD
-  const addTeacher = useCallback((teacherData: Omit<Teacher, 'id'>) => {
-    const newTeacher: Teacher = {
-      ...teacherData,
-      id: `t-${Date.now()}`,
-    };
-    setTeachers((prev) => [...prev, newTeacher]);
-    saveCloudTeacher(newTeacher);
-    saveSupabaseTeacher(newTeacher);
-    showSuccessToast(`Wali kelas ${newTeacher.name} berhasil ditambahkan.`);
-    return newTeacher;
-  }, []);
+  const addTeacher = useCallback(
+    (teacherData: Omit<Teacher, 'id'>) => {
+      const newTeacher: Teacher = {
+        ...teacherData,
+        id: `t-${Date.now()}`,
+      };
+      setTeachers((prev) => [...prev, newTeacher]);
+      saveCloudTeacher(newTeacher);
+      saveSupabaseTeacher(newTeacher);
 
-  const updateTeacher = useCallback((updated: Teacher) => {
-    setTeachers((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-    saveCloudTeacher(updated);
-    saveSupabaseTeacher(updated);
-    showSuccessToast(`Data wali kelas ${updated.name} berhasil diperbarui.`);
-  }, []);
+      if (newTeacher.assignedClass) {
+        const targetClass = classes.find((c) => c.name === newTeacher.assignedClass);
+        if (targetClass && targetClass.homeroomTeacherId !== newTeacher.id) {
+          const updatedClass = { ...targetClass, homeroomTeacherId: newTeacher.id };
+          setClasses((prev) =>
+            prev.map((c) => (c.id === targetClass.id ? updatedClass : c))
+          );
+          saveCloudClass(updatedClass);
+          saveSupabaseClass(updatedClass);
+        }
+      }
 
-  const deleteTeacher = useCallback((id: string) => {
-    setTeachers((prev) => prev.filter((t) => t.id !== id));
-    deleteCloudTeacher(id);
-    deleteSupabaseTeacher(id);
-    showSuccessToast('Wali kelas berhasil dihapus.');
-  }, []);
+      showSuccessToast(`Wali kelas ${newTeacher.name} berhasil ditambahkan.`);
+      return newTeacher;
+    },
+    [classes]
+  );
+
+  const updateTeacher = useCallback(
+    (updated: Teacher) => {
+      setTeachers((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      saveCloudTeacher(updated);
+      saveSupabaseTeacher(updated);
+
+      const affectedClasses: ClassRoom[] = [];
+      classes.forEach((cls) => {
+        if (cls.name === updated.assignedClass && cls.homeroomTeacherId !== updated.id) {
+          affectedClasses.push({ ...cls, homeroomTeacherId: updated.id });
+        } else if (
+          cls.homeroomTeacherId === updated.id &&
+          cls.name !== updated.assignedClass
+        ) {
+          affectedClasses.push({ ...cls, homeroomTeacherId: '' });
+        }
+      });
+
+      if (affectedClasses.length > 0) {
+        const updatedMap = new Map(affectedClasses.map((c) => [c.id, c]));
+        setClasses((prev) => prev.map((c) => updatedMap.get(c.id) || c));
+        affectedClasses.forEach((c) => {
+          saveCloudClass(c);
+          saveSupabaseClass(c);
+        });
+      }
+
+      showSuccessToast(`Data wali kelas ${updated.name} berhasil diperbarui.`);
+    },
+    [classes]
+  );
+
+  const deleteTeacher = useCallback(
+    (id: string) => {
+      setTeachers((prev) => prev.filter((t) => t.id !== id));
+      deleteCloudTeacher(id);
+      deleteSupabaseTeacher(id);
+
+      const clearedClasses = classes
+        .filter((c) => c.homeroomTeacherId === id)
+        .map((c) => ({ ...c, homeroomTeacherId: '' }));
+      if (clearedClasses.length > 0) {
+        const clearedMap = new Map(clearedClasses.map((c) => [c.id, c]));
+        setClasses((prev) => prev.map((c) => clearedMap.get(c.id) || c));
+        clearedClasses.forEach((c) => {
+          saveCloudClass(c);
+          saveSupabaseClass(c);
+        });
+      }
+
+      showSuccessToast('Wali kelas berhasil dihapus.');
+    },
+    [classes]
+  );
 
   // User Management (RBAC)
   const addUser = useCallback((userData: UserAccount) => {

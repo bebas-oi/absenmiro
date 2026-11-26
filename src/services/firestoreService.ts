@@ -37,6 +37,23 @@ const EXAM_SCHEDULES_COLLECTION = 'exam_schedules';
 const EXAM_CONFIGS_COLLECTION = 'exam_configs';
 const EXAM_INSTRUMENTS_COLLECTION = 'exam_instruments';
 
+// Recursively remove undefined fields so Firestore setDoc / writeBatch.set never fails
+function stripUndefined<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => stripUndefined(item)) as unknown as T;
+  }
+  if (value !== null && typeof value === 'object') {
+    const clean: Record<string, unknown> = {};
+    Object.entries(value as Record<string, unknown>).forEach(([k, v]) => {
+      if (v !== undefined) {
+        clean[k] = stripUndefined(v);
+      }
+    });
+    return clean as T;
+  }
+  return value;
+}
+
 // ==========================================
 // SETTINGS
 // ==========================================
@@ -57,7 +74,7 @@ export async function fetchCloudSettings(): Promise<SchoolSettings | null> {
 export async function saveCloudSettings(settings: SchoolSettings): Promise<void> {
   try {
     const docRef = doc(db, SETTINGS_COLLECTION, 'general');
-    await setDoc(docRef, settings, { merge: true });
+    await setDoc(docRef, stripUndefined(settings), { merge: true });
   } catch (err) {
     console.error('[Firestore] Error saving settings:', err);
   }
@@ -90,7 +107,7 @@ export function subscribeCloudClasses(
 export async function saveCloudClass(cls: ClassRoom): Promise<void> {
   try {
     const docRef = doc(db, CLASSES_COLLECTION, cls.id);
-    await setDoc(docRef, cls, { merge: true });
+    await setDoc(docRef, stripUndefined(cls), { merge: true });
   } catch (err) {
     console.error('[Firestore] Error saving class:', err);
   }
@@ -132,7 +149,7 @@ export function subscribeCloudTeachers(
 export async function saveCloudTeacher(teacher: Teacher): Promise<void> {
   try {
     const docRef = doc(db, TEACHERS_COLLECTION, teacher.id);
-    await setDoc(docRef, teacher, { merge: true });
+    await setDoc(docRef, stripUndefined(teacher), { merge: true });
   } catch (err) {
     console.error('[Firestore] Error saving teacher:', err);
   }
@@ -174,7 +191,7 @@ export function subscribeCloudUsers(
 export async function saveCloudUser(user: UserAccount): Promise<void> {
   try {
     const docRef = doc(db, USERS_COLLECTION, user.id);
-    await setDoc(docRef, user, { merge: true });
+    await setDoc(docRef, stripUndefined(user), { merge: true });
   } catch (err) {
     console.error('[Firestore] Error saving user:', err);
   }
@@ -216,7 +233,7 @@ export function subscribeCloudStudents(
 export async function saveCloudStudent(student: Student): Promise<void> {
   try {
     const docRef = doc(db, STUDENTS_COLLECTION, student.id);
-    await setDoc(docRef, student, { merge: true });
+    await setDoc(docRef, stripUndefined(student), { merge: true });
   } catch (err) {
     console.error('[Firestore] Error saving student:', err);
   }
@@ -227,7 +244,7 @@ export async function batchSaveCloudStudents(students: Student[]): Promise<void>
     const batch = writeBatch(db);
     students.forEach((student) => {
       const docRef = doc(db, STUDENTS_COLLECTION, student.id);
-      batch.set(docRef, student, { merge: true });
+      batch.set(docRef, stripUndefined(student), { merge: true });
     });
     await batch.commit();
   } catch (err) {
@@ -271,7 +288,7 @@ export function subscribeCloudAttendance(
 export async function saveCloudAttendance(record: AttendanceRecord): Promise<void> {
   try {
     const docRef = doc(db, ATTENDANCE_COLLECTION, record.id);
-    await setDoc(docRef, record, { merge: true });
+    await setDoc(docRef, stripUndefined(record), { merge: true });
   } catch (err) {
     console.error('[Firestore] Error saving attendance record:', err);
   }
@@ -313,7 +330,7 @@ export function subscribeCloudExamSchedules(
 export async function saveCloudExamSchedule(item: ExamScheduleItem): Promise<void> {
   try {
     const docRef = doc(db, EXAM_SCHEDULES_COLLECTION, item.id);
-    await setDoc(docRef, item, { merge: true });
+    await setDoc(docRef, stripUndefined(item), { merge: true });
   } catch (err) {
     console.error('[Firestore] Error saving exam schedule:', err);
   }
@@ -323,7 +340,7 @@ export async function batchSaveCloudExamSchedules(items: ExamScheduleItem[]): Pr
   try {
     const batch = writeBatch(db);
     items.forEach((item) => {
-      batch.set(doc(db, EXAM_SCHEDULES_COLLECTION, item.id), item, { merge: true });
+      batch.set(doc(db, EXAM_SCHEDULES_COLLECTION, item.id), stripUndefined(item), { merge: true });
     });
     await batch.commit();
   } catch (err) {
@@ -361,7 +378,7 @@ export async function fetchCloudExamConfigs(): Promise<Partial<Record<ExamType, 
 export async function saveCloudExamConfig(examType: ExamType, config: ExamMetaConfig): Promise<void> {
   try {
     const docRef = doc(db, EXAM_CONFIGS_COLLECTION, examType);
-    await setDoc(docRef, config, { merge: true });
+    await setDoc(docRef, stripUndefined(config), { merge: true });
   } catch (err) {
     console.error('[Firestore] Error saving exam config:', err);
   }
@@ -391,7 +408,7 @@ export async function saveCloudExamInstrument(
 ): Promise<void> {
   try {
     const docRef = doc(db, EXAM_INSTRUMENTS_COLLECTION, examType);
-    await setDoc(docRef, instrument, { merge: true });
+    await setDoc(docRef, stripUndefined(instrument), { merge: true });
   } catch (err) {
     console.error('[Firestore] Error saving exam instrument:', err);
   }
@@ -419,40 +436,40 @@ export async function seedInitialFirestoreData(data: {
     console.log('[Firestore] Seeding initial data to Cloud Firestore...');
 
     // 1. Settings
-    await setDoc(doc(db, SETTINGS_COLLECTION, 'general'), data.settings);
+    await setDoc(doc(db, SETTINGS_COLLECTION, 'general'), stripUndefined(data.settings));
 
     // 2. Classes
     const classBatch = writeBatch(db);
     data.classes.forEach((cls) => {
-      classBatch.set(doc(db, CLASSES_COLLECTION, cls.id), cls);
+      classBatch.set(doc(db, CLASSES_COLLECTION, cls.id), stripUndefined(cls));
     });
     await classBatch.commit();
 
     // 3. Teachers
     const teacherBatch = writeBatch(db);
     data.teachers.forEach((t) => {
-      teacherBatch.set(doc(db, TEACHERS_COLLECTION, t.id), t);
+      teacherBatch.set(doc(db, TEACHERS_COLLECTION, t.id), stripUndefined(t));
     });
     await teacherBatch.commit();
 
     // 4. Users
     const userBatch = writeBatch(db);
     data.users.forEach((u) => {
-      userBatch.set(doc(db, USERS_COLLECTION, u.id), u);
+      userBatch.set(doc(db, USERS_COLLECTION, u.id), stripUndefined(u));
     });
     await userBatch.commit();
 
     // 5. Students
     const studentBatch = writeBatch(db);
     data.students.forEach((s) => {
-      studentBatch.set(doc(db, STUDENTS_COLLECTION, s.id), s);
+      studentBatch.set(doc(db, STUDENTS_COLLECTION, s.id), stripUndefined(s));
     });
     await studentBatch.commit();
 
     // 6. Attendance
     const attBatch = writeBatch(db);
     data.attendance.forEach((a) => {
-      attBatch.set(doc(db, ATTENDANCE_COLLECTION, a.id), a);
+      attBatch.set(doc(db, ATTENDANCE_COLLECTION, a.id), stripUndefined(a));
     });
     await attBatch.commit();
 
