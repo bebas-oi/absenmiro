@@ -94,12 +94,21 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
     examConfigs,
     examInstruments,
     updateExamInstrument,
+    updateExamConfig,
     isGuru,
     currentUser,
   } = useApp();
 
   const savedInstrument = examInstruments[examType];
-  const [draft, setDraft] = useState<ExamInstrumentConfig>(savedInstrument);
+  const savedConfig = examConfigs[examType];
+  const [draft, setDraft] = useState<ExamInstrumentConfig>(() => ({
+    ...savedInstrument,
+    periodLabel: savedInstrument.periodLabel || savedConfig?.periodLabel || (examType === 'ASAS' ? '2 - 7 Desember 2026' : '2 - 7 Juni 2027'),
+    committeeChair: savedInstrument.committeeChair || savedConfig?.committeeChair || (examType === 'ASAS' ? 'Ustadz Muhammad Ridwan, M.Pd' : 'Ustadzah Lailatul Badriyah, S.Pd.I'),
+    committeeChairNip: savedInstrument.committeeChairNip || savedConfig?.committeeChairNip || '',
+    skNumber: savedInstrument.skNumber || savedConfig?.skNumber || (examType === 'ASAS' ? '045/MI-RWS/XI/2026' : '089/MI-RWS/V/2027'),
+    skDate: savedInstrument.skDate || savedConfig?.skDate || (examType === 'ASAS' ? '2026-11-20' : '2027-05-20'),
+  }));
   const [innerMode, setInnerMode] = useState<'instrument' | 'submenu'>('instrument');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [customSubjectInput, setCustomSubjectInput] = useState<string>('');
@@ -117,9 +126,18 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
 
   // Sync draft when examType switches or cloud updates come in
   useEffect(() => {
-    setDraft(examInstruments[examType]);
-    setSelectedChecklistId(examInstruments[examType].checklist[0]?.id || 'chk-1');
-  }, [examType, examInstruments]);
+    const inst = examInstruments[examType];
+    const cfg = examConfigs[examType];
+    setDraft({
+      ...inst,
+      periodLabel: inst.periodLabel || cfg?.periodLabel || (examType === 'ASAS' ? '2 - 7 Desember 2026' : '2 - 7 Juni 2027'),
+      committeeChair: inst.committeeChair || cfg?.committeeChair || (examType === 'ASAS' ? 'Ustadz Muhammad Ridwan, M.Pd' : 'Ustadzah Lailatul Badriyah, S.Pd.I'),
+      committeeChairNip: inst.committeeChairNip || cfg?.committeeChairNip || '',
+      skNumber: inst.skNumber || cfg?.skNumber || (examType === 'ASAS' ? '045/MI-RWS/XI/2026' : '089/MI-RWS/V/2027'),
+      skDate: inst.skDate || cfg?.skDate || (examType === 'ASAS' ? '2026-11-20' : '2027-05-20'),
+    });
+    setSelectedChecklistId(inst.checklist[0]?.id || 'chk-1');
+  }, [examType, examInstruments, examConfigs]);
 
   // Unique subjects from schedule for current examType + any subjectOverrides
   const subjectEntries = useMemo(() => {
@@ -218,6 +236,50 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
 
   const handleSave = () => {
     updateExamInstrument(examType, draft);
+    if (updateExamConfig && examConfigs[examType]) {
+      const currentConfig = examConfigs[examType];
+      updateExamConfig(examType, {
+        ...currentConfig,
+        academicYear: draft.academicYearLabel ? draft.academicYearLabel.replace(/[^0-9/]/g, '') || currentConfig.academicYear : currentConfig.academicYear,
+        periodLabel: draft.periodLabel || currentConfig.periodLabel,
+        committeeChair: draft.committeeChair || currentConfig.committeeChair,
+        committeeChairNip: draft.committeeChairNip || currentConfig.committeeChairNip,
+        skNumber: draft.skNumber || currentConfig.skNumber,
+        skDate: draft.skDate || currentConfig.skDate,
+      }, true);
+    }
+  };
+
+  const handleSaveSkPanitia = () => {
+    const currentConfig = examConfigs[examType];
+    const updatedDraft: ExamInstrumentConfig = {
+      ...draft,
+      periodLabel: draft.periodLabel || currentConfig?.periodLabel || '',
+      committeeChair: draft.committeeChair || currentConfig?.committeeChair || '',
+      committeeChairNip: draft.committeeChairNip || currentConfig?.committeeChairNip || '',
+      skNumber: draft.skNumber || currentConfig?.skNumber || '',
+      skDate: draft.skDate || currentConfig?.skDate || '',
+    };
+    setDraft(updatedDraft);
+    updateExamInstrument(examType, updatedDraft, true);
+
+    if (currentConfig) {
+      updateExamConfig(
+        examType,
+        {
+          ...currentConfig,
+          periodLabel: updatedDraft.periodLabel || currentConfig.periodLabel,
+          committeeChair: updatedDraft.committeeChair || currentConfig.committeeChair,
+          committeeChairNip: updatedDraft.committeeChairNip || currentConfig.committeeChairNip,
+          skNumber: updatedDraft.skNumber || currentConfig.skNumber,
+          skDate: updatedDraft.skDate || currentConfig.skDate,
+        },
+        true
+      );
+    }
+    showSuccessToast(
+      `SK Panitia ${examType} berhasil disimpan & diterapkan otomatis ke seluruh berkas (kartu, jadwal, nomor meja, instrumen).`
+    );
   };
 
   const handleResetDefault = () => {
@@ -1058,7 +1120,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
             <tr>
               <td class="k-label">KEDUA</td>
               <td class="k-colon">:</td>
-              <td>Panitia bertugas merencanakan, mempersiapkan administrasi, mengawasi pelaksanaan ujian, merekap nilai, dan melaporkan hasil kegiatan kepada Kepala Madrasah.</td>
+              <td>Panitia bertugas merencanakan, mempersiapkan administrasi, mengawasi pelaksanaan ujian, merekap nilai, dan melaporkan hasil kegiatan kepada Kepala Madrasah. Waktu pelaksanaan ${examType} diselenggarakan pada tanggal <strong>${escapeHtml(draft.periodLabel || examConfigs[examType]?.periodLabel || '-')}</strong>.</td>
             </tr>
             <tr>
               <td class="k-label">KETIGA</td>
@@ -1139,13 +1201,165 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
     );
   };
 
+  // Helper to retrieve all scheduled or configured subjects for a class
+  const getClassSubjectsList = (clsName: string) => {
+    const schedItems = accessibleExamSchedules
+      .filter((s) => s.examType === examType && s.className === clsName)
+      .sort((a, b) => (a.date !== b.date ? a.date.localeCompare(b.date) : a.timeStart.localeCompare(b.timeStart)));
+
+    if (schedItems.length > 0) {
+      const seen = new Set<string>();
+      const list: { subject: string; dayDate: string; timeRange: string; room: string; supervisor: string }[] = [];
+      schedItems.forEach((sc) => {
+        const trimmed = sc.subject.trim();
+        if (trimmed && !seen.has(trimmed)) {
+          seen.add(trimmed);
+          const dateStr = formatShortIndoDate(sc.date);
+          const dayDate = sc.dayName ? `${sc.dayName}, ${dateStr}` : dateStr;
+          const timeRange = sc.timeStart && sc.timeEnd ? `${sc.timeStart} - ${sc.timeEnd} WIB` : '';
+          list.push({
+            subject: trimmed,
+            dayDate,
+            timeRange,
+            room: sc.room || examConfigs[examType]?.defaultRoom || 'Ruang 01',
+            supervisor: sc.supervisor || '( ........................................ )',
+          });
+        }
+      });
+      return list;
+    }
+
+    if (subjectEntries.length > 0) {
+      return subjectEntries.map((se) => ({
+        subject: se.subject,
+        dayDate: se.dayDateLabel || '',
+        timeRange: '07:30 - 09:00 WIB',
+        room: examConfigs[examType]?.defaultRoom || 'Ruang 01',
+        supervisor: '( ........................................ )',
+      }));
+    }
+
+    return [
+      'Al-Qur\'an Hadits',
+      'Akidah Akhlak',
+      'Fikih',
+      'Sejarah Kebudayaan Islam',
+      'Bahasa Arab',
+      'Pendidikan Pancasila',
+      'Bahasa Indonesia',
+      'Matematika',
+      'IPAS',
+      'Bahasa Inggris',
+      'Seni Budaya',
+      'PJOK',
+      'Bahasa Jawa',
+    ].map((subj) => ({
+      subject: subj,
+      dayDate: '',
+      timeRange: '07:30 - 09:00 WIB',
+      room: examConfigs[examType]?.defaultRoom || 'Ruang 01',
+      supervisor: '( ........................................ )',
+    }));
+  };
+
+  const printMultiPageSubMenuDocument = (title: string, pagesHtml: string) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const html = `
+      <!DOCTYPE html>
+      <html lang="id">
+      <head>
+        <base href="${origin}/" />
+        <title>${escapeHtml(title)}</title>
+        <style>
+          @page {
+            size: A4 portrait;
+            margin: 12mm 14mm;
+          }
+          *, *::before, *::after {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+            box-sizing: border-box;
+          }
+          body {
+            font-family: Arial, Helvetica, sans-serif;
+            color: #0f172a;
+            font-size: 11px;
+            margin: 0;
+            padding: 0;
+            background: #e2e8f0;
+          }
+          .sub-doc-page {
+            width: 182mm;
+            min-height: 272mm;
+            margin: 14px auto;
+            padding: 4mm 6mm;
+            background: #ffffff;
+            box-shadow: 0 4px 18px rgba(15, 23, 42, 0.12);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            page-break-after: always;
+            break-after: page;
+          }
+          .sub-doc-page:last-child {
+            page-break-after: auto;
+            break-after: auto;
+          }
+          @media print {
+            body { background: #ffffff !important; }
+            .sub-doc-page {
+              width: 100%;
+              min-height: 100vh;
+              margin: 0;
+              padding: 0;
+              box-shadow: none;
+            }
+          }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+          th {
+            background: #065f46 !important;
+            color: #ffffff !important;
+            padding: 6px 5px;
+            border: 1px solid #065f46;
+            font-size: 9.5px;
+            text-transform: uppercase;
+            text-align: center;
+          }
+          td {
+            padding: 5px 6px;
+            border: 1px solid #cbd5e1;
+            font-size: 10px;
+          }
+          tr:nth-child(even) td { background: #f8fafc !important; }
+          .signs {
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            margin-top: 14px;
+            page-break-inside: avoid;
+          }
+          .sign-box { text-align: center; width: 220px; }
+          .sign-space { height: 42px; }
+        </style>
+      </head>
+      <body>
+        ${pagesHtml}
+      </body>
+      </html>
+    `;
+    printHtmlDocument(html);
+  };
+
   const handlePrintDaftarHadir = () => {
     const classStudents = accessibleStudents.filter(
       (s) => s.className === subMenuClass && s.status === 'aktif'
     );
     const subjData = currentSubjectData;
-    const prefix = examConfigs[examType].participantPrefix;
+    const prefix = examConfigs[examType]?.participantPrefix || 'ASAS';
     const classCode = subMenuClass.replace(/[^0-9A-Z]/gi, '').toUpperCase();
+    const chairName = examConfigs[examType]?.committeeChair || draft.committeeChair || 'M. Abdul Mukhid, S.Pd.I';
+    const chairNip = examConfigs[examType]?.committeeChairNip || draft.committeeChairNip || '';
 
     const rows =
       classStudents.length > 0
@@ -1153,12 +1367,12 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
             .map(
               (st, idx) => `
             <tr>
-              <td style="text-align:center;">${idx + 1}</td>
-              <td style="font-family:monospace;font-weight:bold;">${prefix}-${classCode}-${String(idx + 1).padStart(3, '0')}</td>
-              <td style="font-family:monospace;">${escapeHtml(st.nis)}</td>
+              <td style="text-align:center;width:28px;">${idx + 1}</td>
+              <td style="font-family:monospace;font-weight:bold;width:125px;text-align:center;">${prefix}-${classCode}-${String(idx + 1).padStart(3, '0')}</td>
+              <td style="font-family:monospace;width:95px;text-align:center;">${escapeHtml(st.nisn || st.nis || '-')}</td>
               <td style="font-weight:bold;text-transform:uppercase;">${escapeHtml(st.name)}</td>
-              <td style="height:24px;">${idx % 2 === 0 ? `${idx + 1}. ..............` : ''}</td>
-              <td style="height:24px;">${idx % 2 === 1 ? `${idx + 1}. ..............` : ''}</td>
+              <td style="height:24px;width:80px;font-size:9.5px;">${idx % 2 === 0 ? `${idx + 1}. .............` : ''}</td>
+              <td style="height:24px;width:80px;font-size:9.5px;">${idx % 2 === 1 ? `${idx + 1}. .............` : ''}</td>
             </tr>
           `
             )
@@ -1166,21 +1380,21 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
         : '<tr><td colspan="6" style="text-align:center;padding:12px;">Belum ada siswa aktif pada kelas ini.</td></tr>';
 
     printSubMenuDocument(
-      `DAFTAR HADIR PESERTA ${examType} - ${subMenuClass.toUpperCase()}`,
+      `DAFTAR HADIR PESERTA ${examType} - ${subMenuClass.toUpperCase()} (${subjData.subject})`,
       `
         <div style="display:flex;justify-content:space-between;background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:10.5px;">
           <div><strong>Kelas / Ruang:</strong> ${escapeHtml(subMenuClass)}</div>
-          <div><strong>Mata Pelajaran:</strong> ${escapeHtml(subjData.subject)}</div>
+          <div><strong>Mata Pelajaran:</strong> <u>${escapeHtml(subjData.subject)}</u></div>
           <div><strong>Hari/Tgl:</strong> ${escapeHtml(subjData.dayDate || '-')}</div>
         </div>
         <table>
           <thead>
             <tr>
               <th style="width:28px;">No</th>
-              <th style="width:130px;">No. Peserta</th>
-              <th style="width:85px;">NIS</th>
+              <th style="width:125px;">No. Peserta</th>
+              <th style="width:95px;">NISN</th>
               <th>Nama Peserta Didik</th>
-              <th colspan="2" style="width:170px;">Tanda Tangan</th>
+              <th colspan="2" style="width:160px;">Tanda Tangan</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -1189,7 +1403,8 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
           <div class="sign-box">
             <p style="margin:0;">Mengetahui, Panitia ${examType}</p>
             <div class="sign-space"></div>
-            <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(examConfigs[examType].committeeChair)}</p>
+            <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(chairName)}</p>
+            ${chairNip ? `<p style="margin:2px 0 0 0;font-size:9.5px;">NIP. ${escapeHtml(chairNip)}</p>` : ''}
           </div>
           <div class="sign-box">
             <p style="margin:0;">Pengawas Ruang,</p>
@@ -1198,6 +1413,92 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
           </div>
         </div>
       `
+    );
+  };
+
+  const handlePrintDaftarHadirSemuaMapel = () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const classStudents = accessibleStudents.filter(
+      (s) => s.className === subMenuClass && s.status === 'aktif'
+    );
+    if (classStudents.length === 0) {
+      showWarningToast(`Tidak ada siswa aktif di ${subMenuClass}.`);
+      return;
+    }
+
+    const subjects = getClassSubjectsList(subMenuClass);
+    if (subjects.length === 0) {
+      showWarningToast(`Tidak ditemukan mata pelajaran untuk kelas ${subMenuClass}.`);
+      return;
+    }
+
+    const prefix = examConfigs[examType]?.participantPrefix || 'ASAS';
+    const classCode = subMenuClass.replace(/[^0-9A-Z]/gi, '').toUpperCase();
+    const chairName = examConfigs[examType]?.committeeChair || draft.committeeChair || 'M. Abdul Mukhid, S.Pd.I';
+    const chairNip = examConfigs[examType]?.committeeChairNip || draft.committeeChairNip || '';
+
+    const studentRowsHtml = classStudents
+      .map(
+        (st, idx) => `
+        <tr>
+          <td style="text-align:center;width:28px;">${idx + 1}</td>
+          <td style="font-family:monospace;font-weight:bold;width:125px;text-align:center;">${prefix}-${classCode}-${String(idx + 1).padStart(3, '0')}</td>
+          <td style="font-family:monospace;width:95px;text-align:center;">${escapeHtml(st.nisn || st.nis || '-')}</td>
+          <td style="font-weight:bold;text-transform:uppercase;">${escapeHtml(st.name)}</td>
+          <td style="height:22px;width:80px;font-size:9px;">${idx % 2 === 0 ? `${idx + 1}. .............` : ''}</td>
+          <td style="height:22px;width:80px;font-size:9px;">${idx % 2 === 1 ? `${idx + 1}. .............` : ''}</td>
+        </tr>
+      `
+      )
+      .join('');
+
+    const pagesHtml = subjects
+      .map((subj) => {
+        return `
+        <div class="sub-doc-page">
+          <div>
+            ${buildMadrasahKopHtml(origin, `DAFTAR HADIR PESERTA ${examType} - ${escapeHtml(subMenuClass.toUpperCase())}`, true)}
+            <div style="display:flex;justify-content:space-between;background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:6px 10px;margin-bottom:10px;font-size:10px;">
+              <div><strong>Kelas / Ruang:</strong> ${escapeHtml(subMenuClass)} / ${escapeHtml(subj.room)}</div>
+              <div><strong>Mata Pelajaran:</strong> <u>${escapeHtml(subj.subject)}</u></div>
+              <div><strong>Hari/Tgl:</strong> ${escapeHtml(subj.dayDate || '-')} ${subj.timeRange ? `(${escapeHtml(subj.timeRange)})` : ''}</div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:28px;">No</th>
+                  <th style="width:125px;">No. Peserta</th>
+                  <th style="width:95px;">NISN</th>
+                  <th>Nama Peserta Didik</th>
+                  <th colspan="2" style="width:160px;">Tanda Tangan</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${studentRowsHtml}
+              </tbody>
+            </table>
+          </div>
+          <div class="signs">
+            <div class="sign-box">
+              <p style="margin:0;">Mengetahui, Panitia ${examType}</p>
+              <div class="sign-space"></div>
+              <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(chairName)}</p>
+              ${chairNip ? `<p style="margin:2px 0 0 0;font-size:9.5px;">NIP. ${escapeHtml(chairNip)}</p>` : ''}
+            </div>
+            <div class="sign-box">
+              <p style="margin:0;">Pengawas Ruang,</p>
+              <div class="sign-space"></div>
+              <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(subj.supervisor)}</p>
+            </div>
+          </div>
+        </div>
+      `;
+      })
+      .join('');
+
+    printMultiPageSubMenuDocument(
+      `Daftar Hadir Semua Mapel ${examType} - ${subMenuClass} (${subjects.length} Mapel)`,
+      pagesHtml
     );
   };
 
@@ -1211,6 +1512,8 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
     const sched = accessibleExamSchedules.find(
       (s) => s.examType === examType && s.className === subMenuClass && s.subject === currentSubjectData.subject
     );
+    const chairName = examConfigs[examType]?.committeeChair || draft.committeeChair || 'M. Abdul Mukhid, S.Pd.I';
+    const chairNip = examConfigs[examType]?.committeeChairNip || draft.committeeChairNip || '';
 
     printSubMenuDocument(
       `BERITA ACARA PELAKSANAAN ${examType}`,
@@ -1219,7 +1522,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
           <p style="margin:0 0 10px 0;">Pada hari ini <strong>${escapeHtml(currentSubjectData.dayDate || '....................')}</strong> bertempat di <strong>${escapeHtml(draft.madrasahName)}</strong>, telah dilaksanakan <strong>${examType} (${escapeHtml(draft.academicYearLabel)})</strong> dengan rincian sebagai berikut:</p>
           <table>
             <tbody>
-              <tr><td style="width:190px;"><strong>Mata Pelajaran</strong></td><td>${escapeHtml(currentSubjectData.subject)}</td></tr>
+              <tr><td style="width:190px;"><strong>Mata Pelajaran</strong></td><td><strong>${escapeHtml(currentSubjectData.subject)}</strong></td></tr>
               <tr><td><strong>Kelas / Ruang Ujian</strong></td><td>${escapeHtml(subMenuClass)} / ${escapeHtml(sched?.room || examConfigs[examType].defaultRoom)}</td></tr>
               <tr><td><strong>Waktu Pelaksanaan</strong></td><td>${escapeHtml(sched ? `${sched.timeStart} - ${sched.timeEnd} WIB` : '07:30 - 09:00 WIB')}</td></tr>
               <tr><td><strong>Jumlah Peserta Seharusnya</strong></td><td><strong>${total}</strong> siswa</td></tr>
@@ -1239,10 +1542,75 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
           <div class="sign-box">
             <p style="margin:0;">Ketua Panitia ${examType},</p>
             <div class="sign-space"></div>
-            <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(examConfigs[examType].committeeChair)}</p>
+            <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(chairName)}</p>
+            ${chairNip ? `<p style="margin:2px 0 0 0;font-size:9.5px;">NIP. ${escapeHtml(chairNip)}</p>` : ''}
           </div>
         </div>
       `
+    );
+  };
+
+  const handlePrintBeritaAcaraSemuaMapel = () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const classStudents = accessibleStudents.filter(
+      (s) => s.className === subMenuClass && s.status === 'aktif'
+    );
+    const total = classStudents.length;
+    const absent = Math.max(0, Math.min(total, Number(baAbsentCount) || 0));
+    const present = Math.max(0, total - absent);
+
+    const subjects = getClassSubjectsList(subMenuClass);
+    if (subjects.length === 0) {
+      showWarningToast(`Tidak ditemukan mata pelajaran untuk kelas ${subMenuClass}.`);
+      return;
+    }
+
+    const chairName = examConfigs[examType]?.committeeChair || draft.committeeChair || 'M. Abdul Mukhid, S.Pd.I';
+    const chairNip = examConfigs[examType]?.committeeChairNip || draft.committeeChairNip || '';
+
+    const pagesHtml = subjects
+      .map((subj) => {
+        return `
+        <div class="sub-doc-page">
+          <div>
+            ${buildMadrasahKopHtml(origin, `BERITA ACARA PELAKSANAAN ${examType}`, true)}
+            <div style="border:1px solid #cbd5e1;border-radius:8px;padding:12px 14px;line-height:1.65;font-size:10.5px;">
+              <p style="margin:0 0 8px 0;">Pada hari ini <strong>${escapeHtml(subj.dayDate || '....................')}</strong> bertempat di <strong>${escapeHtml(draft.madrasahName)}</strong>, telah dilaksanakan <strong>${examType} (${escapeHtml(draft.academicYearLabel)})</strong> dengan rincian sebagai berikut:</p>
+              <table>
+                <tbody>
+                  <tr><td style="width:190px;"><strong>Mata Pelajaran</strong></td><td><strong>${escapeHtml(subj.subject)}</strong></td></tr>
+                  <tr><td><strong>Kelas / Ruang Ujian</strong></td><td>${escapeHtml(subMenuClass)} / ${escapeHtml(subj.room)}</td></tr>
+                  <tr><td><strong>Waktu Pelaksanaan</strong></td><td>${escapeHtml(subj.timeRange || '07:30 - 09:00 WIB')}</td></tr>
+                  <tr><td><strong>Jumlah Peserta Seharusnya</strong></td><td><strong>${total}</strong> siswa</td></tr>
+                  <tr><td><strong>Jumlah Peserta Hadir</strong></td><td><strong>${present}</strong> siswa</td></tr>
+                  <tr><td><strong>Jumlah Peserta Tidak Hadir</strong></td><td><strong>${absent}</strong> siswa (${escapeHtml(baAbsentNames || '-')})</td></tr>
+                  <tr><td><strong>Catatan Selama Ujian</strong></td><td>${escapeHtml(draft.beritaAcaraNotes || 'Berjalan tertib, aman, dan lancar.')}</td></tr>
+                </tbody>
+              </table>
+              <p style="margin:6px 0 0 0;">Demikian berita acara pelaksanaan ujian ini dibuat dengan sesungguhnya untuk digunakan sebagaimana mestinya.</p>
+            </div>
+          </div>
+          <div class="signs">
+            <div class="sign-box">
+              <p style="margin:0;">Pengawas Ruang,</p>
+              <div class="sign-space"></div>
+              <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(subj.supervisor)}</p>
+            </div>
+            <div class="sign-box">
+              <p style="margin:0;">Ketua Panitia ${examType},</p>
+              <div class="sign-space"></div>
+              <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(chairName)}</p>
+              ${chairNip ? `<p style="margin:2px 0 0 0;font-size:9.5px;">NIP. ${escapeHtml(chairNip)}</p>` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+      })
+      .join('');
+
+    printMultiPageSubMenuDocument(
+      `Berita Acara Semua Mapel ${examType} - ${subMenuClass} (${subjects.length} Mapel)`,
+      pagesHtml
     );
   };
 
@@ -1257,7 +1625,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
               (st, idx) => `
           <tr>
             <td style="text-align:center;">${idx + 1}</td>
-            <td style="font-family:monospace;">${escapeHtml(st.nis)}</td>
+            <td style="font-family:monospace;text-align:center;">${escapeHtml(st.nisn || st.nis || '-')}</td>
             <td style="font-weight:bold;text-transform:uppercase;">${escapeHtml(st.name)}</td>
             <td style="text-align:center;">${st.gender}</td>
             <td style="text-align:center;font-weight:bold;">${escapeHtml(scoreMap[st.id] || '')}</td>
@@ -1269,18 +1637,18 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
         : '<tr><td colspan="6" style="text-align:center;padding:12px;">Belum ada siswa aktif pada kelas ini.</td></tr>';
 
     printSubMenuDocument(
-      `DAFTAR NILAI ${examType} - ${subMenuClass.toUpperCase()}`,
+      `DAFTAR NILAI ${examType} - ${subMenuClass.toUpperCase()} (${currentSubjectData.subject})`,
       `
         <div style="display:flex;justify-content:space-between;background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:10.5px;">
           <div><strong>Kelas:</strong> ${escapeHtml(subMenuClass)}</div>
-          <div><strong>Mata Pelajaran:</strong> ${escapeHtml(currentSubjectData.subject)}</div>
+          <div><strong>Mata Pelajaran:</strong> <u>${escapeHtml(currentSubjectData.subject)}</u></div>
           <div><strong>Tanggal:</strong> ${escapeHtml(currentSubjectData.dayDate || '-')}</div>
         </div>
         <table>
           <thead>
             <tr>
               <th style="width:28px;">No</th>
-              <th style="width:90px;">NIS</th>
+              <th style="width:95px;">NISN</th>
               <th>Nama Siswa</th>
               <th style="width:40px;">L/P</th>
               <th style="width:80px;">Nilai</th>
@@ -1302,6 +1670,88 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
           </div>
         </div>
       `
+    );
+  };
+
+  const handlePrintDaftarNilaiSemuaMapel = () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const classStudents = accessibleStudents.filter(
+      (s) => s.className === subMenuClass && s.status === 'aktif'
+    );
+    if (classStudents.length === 0) {
+      showWarningToast(`Tidak ada siswa aktif di ${subMenuClass}.`);
+      return;
+    }
+
+    const subjects = getClassSubjectsList(subMenuClass);
+    if (subjects.length === 0) {
+      showWarningToast(`Tidak ditemukan mata pelajaran untuk kelas ${subMenuClass}.`);
+      return;
+    }
+
+    const headmasterName = draft.headmasterName || settings.headmaster || 'Kepala Madrasah';
+    const headmasterTitle = draft.headmasterTitle || 'Kepala Madrasah';
+
+    const pagesHtml = subjects
+      .map((subj) => {
+        const rows = classStudents
+          .map(
+            (st, idx) => `
+            <tr>
+              <td style="text-align:center;width:28px;">${idx + 1}</td>
+              <td style="font-family:monospace;width:95px;text-align:center;">${escapeHtml(st.nisn || st.nis || '-')}</td>
+              <td style="font-weight:bold;text-transform:uppercase;">${escapeHtml(st.name)}</td>
+              <td style="text-align:center;width:40px;">${st.gender}</td>
+              <td style="text-align:center;font-weight:bold;width:75px;">${subj.subject === currentSubjectData.subject ? escapeHtml(scoreMap[st.id] || '') : ''}</td>
+              <td style="width:110px;"></td>
+            </tr>
+          `
+          )
+          .join('');
+
+        return `
+        <div class="sub-doc-page">
+          <div>
+            ${buildMadrasahKopHtml(origin, `DAFTAR NILAI ${examType} - ${escapeHtml(subMenuClass.toUpperCase())}`, true)}
+            <div style="display:flex;justify-content:space-between;background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:6px 10px;margin-bottom:10px;font-size:10px;">
+              <div><strong>Kelas:</strong> ${escapeHtml(subMenuClass)}</div>
+              <div><strong>Mata Pelajaran:</strong> <u>${escapeHtml(subj.subject)}</u></div>
+              <div><strong>Tanggal:</strong> ${escapeHtml(subj.dayDate || '-')}</div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:28px;">No</th>
+                  <th style="width:95px;">NISN</th>
+                  <th>Nama Siswa</th>
+                  <th style="width:40px;">L/P</th>
+                  <th style="width:75px;">Nilai</th>
+                  <th style="width:110px;">Keterangan</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+          <div class="signs">
+            <div class="sign-box">
+              <p style="margin:0;">Mengetahui, ${escapeHtml(headmasterTitle)}</p>
+              <div class="sign-space"></div>
+              <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(headmasterName)}</p>
+            </div>
+            <div class="sign-box">
+              <p style="margin:0;">Guru Pengampu / Wali Kelas,</p>
+              <div class="sign-space"></div>
+              <p style="margin:0;font-weight:bold;text-decoration:underline;">( ........................................ )</p>
+            </div>
+          </div>
+        </div>
+      `;
+      })
+      .join('');
+
+    printMultiPageSubMenuDocument(
+      `Daftar Nilai Semua Mapel ${examType} - ${subMenuClass} (${subjects.length} Mapel)`,
+      pagesHtml
     );
   };
 
@@ -1391,6 +1841,429 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
         </table>
       `
     );
+  };
+
+  const handlePrintAllInstrumentsBatch = () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const schoolDisplay = draft.madrasahName || settings.schoolName || 'MI Islamiyah Rowosari';
+    const examFullTitle =
+      examType === 'ASAS'
+        ? 'Asesmen Sumatif Akhir Semester (ASAS)'
+        : 'Asesmen Sumatif Akhir Tahun (ASAT)';
+    const skDateFormatted = formatShortIndoDate(draft.skDate) || '-';
+    const yearLabel = draft.academicYearLabel || 'TAHUN PELAJARAN 2026/2027';
+    const headmasterDisplay = draft.headmasterName || settings.headmaster || 'Kepala Madrasah';
+    const headmasterNipDisplay = draft.headmasterNip || settings.headmasterNip || '-';
+
+    // SK Panitia rows
+    const committeeRows = draft.skCommitteeText
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line, idx) => {
+        const colonIdx = line.indexOf(':');
+        if (colonIdx > -1) {
+          const role = line.slice(0, colonIdx).trim();
+          const rest = line.slice(colonIdx + 1).trim();
+          const parenMatch = rest.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+          const person = parenMatch ? parenMatch[1].trim() : rest;
+          const note = parenMatch ? parenMatch[2].trim() : role;
+          return { no: idx + 1, role, person, note };
+        }
+        return { no: idx + 1, role: 'Anggota Panitia', person: line, note: '-' };
+      });
+
+    const committeeTableRowsHtml =
+      committeeRows.length > 0
+        ? committeeRows
+            .map(
+              (row) => `
+          <tr>
+            <td style="text-align:center;width:28px;">${row.no}</td>
+            <td style="font-weight:bold;width:28%;">${escapeHtml(row.role)}</td>
+            <td style="width:42%;">${escapeHtml(row.person)}</td>
+            <td>${escapeHtml(row.note)}</td>
+          </tr>
+        `
+            )
+            .join('')
+        : '<tr><td colspan="4" style="text-align:center;padding:8px;">Susunan panitia belum diisi.</td></tr>';
+
+    const classStudents = accessibleStudents.filter(
+      (s) => s.className === subMenuClass && s.status === 'aktif'
+    );
+    const subjData = currentSubjectData;
+    const prefix = examConfigs[examType].participantPrefix;
+    const classCode = subMenuClass.replace(/[^0-9A-Z]/gi, '').toUpperCase();
+
+    const daftarHadirRows =
+      classStudents.length > 0
+        ? classStudents
+            .map(
+              (st, idx) => `
+            <tr>
+              <td style="text-align:center;">${idx + 1}</td>
+              <td style="font-family:monospace;font-weight:bold;">${prefix}-${classCode}-${String(idx + 1).padStart(3, '0')}</td>
+              <td style="font-family:monospace;">${escapeHtml(st.nisn || st.nis || '-')}</td>
+              <td style="font-weight:bold;text-transform:uppercase;">${escapeHtml(st.name)}</td>
+              <td style="height:24px;">${idx % 2 === 0 ? `${idx + 1}. ..............` : ''}</td>
+              <td style="height:24px;">${idx % 2 === 1 ? `${idx + 1}. ..............` : ''}</td>
+            </tr>
+          `
+            )
+            .join('')
+        : '<tr><td colspan="6" style="text-align:center;padding:12px;">Belum ada siswa aktif pada kelas ini.</td></tr>';
+
+    const daftarNilaiRows =
+      classStudents.length > 0
+        ? classStudents
+            .map(
+              (st, idx) => `
+          <tr>
+            <td style="text-align:center;">${idx + 1}</td>
+            <td style="font-family:monospace;">${escapeHtml(st.nisn || st.nis || '-')}</td>
+            <td style="font-weight:bold;text-transform:uppercase;">${escapeHtml(st.name)}</td>
+            <td style="text-align:center;">${escapeHtml(st.gender)}</td>
+            <td style="text-align:center;"></td>
+            <td></td>
+          </tr>
+        `
+            )
+            .join('')
+        : '<tr><td colspan="6" style="text-align:center;padding:12px;">Belum ada siswa aktif pada kelas ini.</td></tr>';
+
+    const rabTotal = draft.rabItems.reduce(
+      (sum, item) => sum + (Number(item.volume) || 0) * (Number(item.hargaSatuan) || 0),
+      0
+    );
+    const rabRows = draft.rabItems
+      .map((item, idx) => {
+        const sub = (Number(item.volume) || 0) * (Number(item.hargaSatuan) || 0);
+        return `
+          <tr>
+            <td style="text-align:center;">${idx + 1}</td>
+            <td>${escapeHtml(item.uraian)}</td>
+            <td style="text-align:center;">${escapeHtml(item.volume)} ${escapeHtml(item.satuan)}</td>
+            <td style="text-align:right;">${formatRupiah(item.hargaSatuan)}</td>
+            <td style="text-align:right;font-weight:bold;">${formatRupiah(sub)}</td>
+          </tr>
+        `;
+      })
+      .join('');
+
+    const bellRows = draft.bellSchedule
+      .map(
+        (b, idx) => `
+      <tr>
+        <td style="text-align:center;">${idx + 1}</td>
+        <td style="font-weight:bold;">${escapeHtml(b.signal)}</td>
+        <td>${escapeHtml(b.timing)}</td>
+        <td>${escapeHtml(b.meaning)}</td>
+      </tr>
+    `
+      )
+      .join('');
+
+    const batchHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <base href="${origin}/" />
+        <title>Batch Instrumen ${examType} - ${escapeHtml(subMenuClass)}</title>
+        <style>
+          @page { size: A4 portrait; margin: 12mm; }
+          *, *::before, *::after { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; }
+          body { font-family: Arial, Helvetica, sans-serif; color: #0f172a; font-size: 11px; margin: 0; padding: 0; }
+          .doc-section {
+            page-break-after: always;
+            break-after: page;
+            min-height: 270mm;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding-bottom: 10mm;
+          }
+          .doc-section:last-child {
+            page-break-after: auto;
+            break-after: auto;
+          }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
+          th { background: #065f46 !important; color: #ffffff !important; padding: 7px 6px; border: 1px solid #065f46; font-size: 10px; text-transform: uppercase; }
+          td { padding: 6px; border: 1px solid #cbd5e1; font-size: 10.5px; }
+          tr:nth-child(even) td { background: #f8fafc !important; }
+          .signs { display: flex; justify-content: space-between; padding: 0 24px; margin-top: 20px; page-break-inside: avoid; }
+          .sign-box { text-align: center; width: 220px; font-size: 11px; }
+          .sign-space { height: 48px; }
+        </style>
+      </head>
+      <body>
+
+        <!-- 1. SK Panitia (Strictly 1 Page) -->
+        <div class="doc-section" style="font-family: 'Times New Roman', Times, serif; font-size: 9.8pt; line-height: 1.25;">
+          <div>
+            ${buildMadrasahKopHtml(origin, '', false)}
+            <div style="text-align: center; font-weight: bold; margin: 2px 0 6px 0;">
+              <div style="font-size: 10.5pt; text-transform: uppercase;">KEPUTUSAN KEPALA ${escapeHtml(schoolDisplay.toUpperCase())}</div>
+              <div style="font-size: 10pt; margin-bottom: 3px;">NOMOR : ${escapeHtml(draft.skNumber || '-')}</div>
+              <div style="font-size: 10pt; margin-top: 2px;">TENTANG</div>
+              <div style="font-size: 10pt; text-transform: uppercase;">PEMBENTUKAN PANITIA PENYELENGGARA ${escapeHtml(examFullTitle.toUpperCase())}</div>
+              <div style="font-size: 10pt; text-transform: uppercase;">${escapeHtml(yearLabel.toUpperCase())}</div>
+            </div>
+            <div style="text-align: center; font-weight: bold; margin: 4px 0 5px 0; font-size: 9.8pt;">KEPALA ${escapeHtml(schoolDisplay.toUpperCase())}</div>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 4px;">
+              <tr><td style="width: 85px; font-weight: bold; vertical-align: top; border:none; padding:1px 0;">Menimbang</td><td style="width: 12px; text-align: center; vertical-align: top; border:none;">:</td><td style="border:none; padding:1px 0; text-align:justify;">Untuk kelancaran penyelenggaraan ${escapeHtml(examFullTitle)} ${escapeHtml(yearLabel)}, dipandang perlu menetapkan Panitia Penyelenggara.</td></tr>
+              <tr><td style="font-weight: bold; vertical-align: top; border:none; padding:1px 0;">Mengingat</td><td style="text-align: center; vertical-align: top; border:none;">:</td><td style="border:none; padding:1px 0; text-align:justify;">1. Undang-Undang Nomor 20 Tahun 2003 tentang Sisdiknas.<br>2. Program Kerja Madrasah Tahun Pelajaran ${escapeHtml(draft.academicYearLabel)}.</td></tr>
+            </table>
+            <div style="text-align: center; font-weight: bold; letter-spacing: 3px; margin: 4px 0 3px 0; font-size: 10pt;">MEMUTUSKAN</div>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 4px;">
+              <tr><td style="width: 85px; font-weight: bold; vertical-align: top; border:none; padding:1px 0;">Menetapkan</td><td style="text-align: center; vertical-align: top; border:none;">:</td><td style="border:none; padding:1px 0;">KEPUTUSAN KEPALA ${escapeHtml(schoolDisplay.toUpperCase())} TENTANG SUSUNAN PANITIA PENYELENGGARA ${escapeHtml(examFullTitle.toUpperCase())} ${escapeHtml(yearLabel)}.</td></tr>
+              <tr><td style="font-weight: bold; vertical-align: top; border:none; padding:1px 0;">PERTAMA</td><td style="text-align: center; vertical-align: top; border:none;">:</td><td style="border:none; padding:1px 0; text-align:justify;">Membentuk Panitia Penyelenggara ${escapeHtml(examType)} dengan susunan sebagaimana tercantum dalam lampiran keputusan ini.</td></tr>
+              <tr><td style="font-weight: bold; vertical-align: top; border:none; padding:1px 0;">KEDUA</td><td style="text-align: center; vertical-align: top; border:none;">:</td><td style="border:none; padding:1px 0; text-align:justify;">Waktu pelaksanaan ujian: <strong>${escapeHtml(draft.periodLabel || '-')}</strong>.</td></tr>
+              <tr><td style="font-weight: bold; vertical-align: top; border:none; padding:1px 0;">KETIGA</td><td style="text-align: center; vertical-align: top; border:none;">:</td><td style="border:none; padding:1px 0; text-align:justify;">Segala biaya yang timbul dibebankan pada anggaran yang relevan.</td></tr>
+              <tr><td style="font-weight: bold; vertical-align: top; border:none; padding:1px 0;">KEEMPAT</td><td style="text-align: center; vertical-align: top; border:none;">:</td><td style="border:none; padding:1px 0; text-align:justify;">Keputusan ini berlaku sejak tanggal ditetapkan.</td></tr>
+            </table>
+            <div style="text-align: right; margin-top: 4px; font-size: 9.5pt;">
+              <div>Ditetapkan di : Rowosari</div>
+              <div>Pada tanggal : ${escapeHtml(skDateFormatted)}</div>
+              <div style="font-weight: bold; margin-top: 2px;">Kepala Madrasah</div>
+              <div style="height: 35px;"></div>
+              <div style="font-weight: bold; text-decoration: underline;">${escapeHtml(headmasterDisplay)}</div>
+              <div>NIP. ${escapeHtml(headmasterNipDisplay)}</div>
+            </div>
+            <div style="page-break-before: always; margin-top: 10px;">
+              <div style="text-align: center; font-size: 9.5pt; font-weight: bold; margin-bottom: 4px;">LAMPIRAN: KEPUTUSAN KEPALA ${escapeHtml(schoolDisplay.toUpperCase())}<br>NOMOR: ${escapeHtml(draft.skNumber || '-')} &bull; TANGGAL: ${escapeHtml(skDateFormatted)}</div>
+              <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+                <thead>
+                  <tr>
+                    <th style="background: #f1f5f9 !important; color: #000 !important; border: 1px solid #000; padding: 3px; text-align: center;">No</th>
+                    <th style="background: #f1f5f9 !important; color: #000 !important; border: 1px solid #000; padding: 3px;">Jabatan dalam Panitia</th>
+                    <th style="background: #f1f5f9 !important; color: #000 !important; border: 1px solid #000; padding: 3px;">Nama Personil</th>
+                    <th style="background: #f1f5f9 !important; color: #000 !important; border: 1px solid #000; padding: 3px;">Keterangan</th>
+                  </tr>
+                </thead>
+                <tbody>${committeeTableRowsHtml}</tbody>
+              </table>
+            </div>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: flex-end; font-size: 8.5pt; margin-top: 10px;">
+            <div>Tembusan disampaikan kepada Yth:<br>1. Ketua Yayasan<br>2. Pengawas Madrasah<br>3. Arsip</div>
+            <div style="text-align: center; width: 200px;">
+              <div>Kepala Madrasah</div>
+              <div style="height: 32px;"></div>
+              <div style="font-weight: bold; text-decoration: underline;">${escapeHtml(headmasterDisplay)}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Tata Tertib -->
+        <div class="doc-section">
+          <div>
+            ${buildMadrasahKopHtml(origin, `TATA TERTIB PELAKSANAAN ${examType}`, true)}
+            <div style="border:1.5px solid #065f46;border-radius:8px;padding:16px 20px;margin-bottom:18px;background:#ffffff;">
+              <ol style="margin:0;padding-left:20px;font-size:12px;line-height:1.65;">
+                ${draft.tataTertibItems.map((it) => `<li style="margin-bottom:8px;">${escapeHtml(it)}</li>`).join('')}
+              </ol>
+            </div>
+          </div>
+          <div class="signs">
+            <div class="sign-box">
+              <p style="margin:0;">Mengetahui,</p>
+              <p style="margin:2px 0 0 0;font-weight:bold;">${escapeHtml(draft.headmasterTitle)}</p>
+              <div class="sign-space"></div>
+              <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(draft.headmasterName || settings.headmaster)}</p>
+              <p style="margin:2px 0 0 0;font-size:10px;">NIP. ${escapeHtml(draft.headmasterNip || settings.headmasterNip)}</p>
+            </div>
+            <div class="sign-box">
+              <p style="margin:0;">Ketua Panitia ${examType}</p>
+              <div class="sign-space"></div>
+              <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(examConfigs[examType].committeeChair)}</p>
+              <p style="margin:2px 0 0 0;font-size:10px;">NIP. ${escapeHtml(examConfigs[examType].committeeChairNip || '-')}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Daftar Hadir -->
+        <div class="doc-section">
+          <div>
+            ${buildMadrasahKopHtml(origin, `DAFTAR HADIR PESERTA ${examType} - ${subMenuClass.toUpperCase()}`, true)}
+            <div style="display:flex;justify-content:space-between;background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:10.5px;">
+              <div><strong>Kelas / Ruang:</strong> ${escapeHtml(subMenuClass)}</div>
+              <div><strong>Mata Pelajaran:</strong> ${escapeHtml(subjData.subject)}</div>
+              <div><strong>Hari/Tgl:</strong> ${escapeHtml(subjData.dayDate || '-')}</div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:28px;">No</th>
+                  <th style="width:130px;">No. Peserta</th>
+                  <th style="width:85px;">NISN</th>
+                  <th>Nama Peserta Didik</th>
+                  <th colspan="2" style="width:170px;">Tanda Tangan</th>
+                </tr>
+              </thead>
+              <tbody>${daftarHadirRows}</tbody>
+            </table>
+          </div>
+          <div class="signs">
+            <div class="sign-box">
+              <p style="margin:0;">Mengetahui, Panitia ${examType}</p>
+              <div class="sign-space"></div>
+              <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(examConfigs[examType].committeeChair)}</p>
+            </div>
+            <div class="sign-box">
+              <p style="margin:0;">Pengawas Ruang,</p>
+              <div class="sign-space"></div>
+              <p style="margin:0;font-weight:bold;text-decoration:underline;">( ........................................ )</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Berita Acara -->
+        <div class="doc-section">
+          <div>
+            ${buildMadrasahKopHtml(origin, `BERITA ACARA PELAKSANAAN ${examType}`, true)}
+            <div style="border:1px solid #cbd5e1;border-radius:8px;padding:14px 16px;line-height:1.7;font-size:11px;">
+              <p style="margin:0 0 10px 0;">Pada hari ini <strong>${escapeHtml(currentSubjectData.dayDate || '....................')}</strong> bertempat di <strong>${escapeHtml(draft.madrasahName)}</strong>, telah dilaksanakan <strong>${examType} (${escapeHtml(draft.academicYearLabel)})</strong> dengan rincian sebagai berikut:</p>
+              <table>
+                <tbody>
+                  <tr><td style="width:190px;"><strong>Mata Pelajaran</strong></td><td>${escapeHtml(currentSubjectData.subject)}</td></tr>
+                  <tr><td><strong>Kelas / Ruang Ujian</strong></td><td>${escapeHtml(subMenuClass)} / ${escapeHtml(examConfigs[examType].defaultRoom)}</td></tr>
+                  <tr><td><strong>Waktu Pelaksanaan</strong></td><td>07:30 - 09:00 WIB</td></tr>
+                  <tr><td><strong>Jumlah Peserta Seharusnya</strong></td><td><strong>${classStudents.length}</strong> siswa</td></tr>
+                  <tr><td><strong>Jumlah Peserta Hadir</strong></td><td><strong>${classStudents.length}</strong> siswa</td></tr>
+                  <tr><td><strong>Jumlah Peserta Tidak Hadir</strong></td><td><strong>0</strong> siswa</td></tr>
+                  <tr><td><strong>Catatan Selama Ujian</strong></td><td>${escapeHtml(draft.beritaAcaraNotes || 'Berjalan tertib dan lancar.')}</td></tr>
+                </tbody>
+              </table>
+              <p style="margin:8px 0 0 0;">Demikian berita acara pelaksanaan ujian ini dibuat dengan sesungguhnya untuk digunakan sebagaimana mestinya.</p>
+            </div>
+          </div>
+          <div class="signs">
+            <div class="sign-box">
+              <p style="margin:0;">Pengawas Ruang,</p>
+              <div class="sign-space"></div>
+              <p style="margin:0;font-weight:bold;text-decoration:underline;">( .................................... )</p>
+            </div>
+            <div class="sign-box">
+              <p style="margin:0;">Ketua Panitia ${examType},</p>
+              <div class="sign-space"></div>
+              <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(examConfigs[examType].committeeChair)}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. Daftar Nilai -->
+        <div class="doc-section">
+          <div>
+            ${buildMadrasahKopHtml(origin, `DAFTAR NILAI ${examType} - ${subMenuClass.toUpperCase()}`, true)}
+            <div style="display:flex;justify-content:space-between;background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:10.5px;">
+              <div><strong>Kelas:</strong> ${escapeHtml(subMenuClass)}</div>
+              <div><strong>Mata Pelajaran:</strong> ${escapeHtml(currentSubjectData.subject)}</div>
+              <div><strong>Tanggal:</strong> ${escapeHtml(currentSubjectData.dayDate || '-')}</div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:28px;">No</th>
+                  <th style="width:90px;">NISN</th>
+                  <th>Nama Siswa</th>
+                  <th style="width:40px;">L/P</th>
+                  <th style="width:80px;">Nilai</th>
+                  <th style="width:120px;">Keterangan</th>
+                </tr>
+              </thead>
+              <tbody>${daftarNilaiRows}</tbody>
+            </table>
+          </div>
+          <div class="signs">
+            <div class="sign-box">
+              <p style="margin:0;">Mengetahui, ${escapeHtml(draft.headmasterTitle)}</p>
+              <div class="sign-space"></div>
+              <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(draft.headmasterName || settings.headmaster)}</p>
+            </div>
+            <div class="sign-box">
+              <p style="margin:0;">Guru Mata Pelajaran / Wali Kelas,</p>
+              <div class="sign-space"></div>
+              <p style="margin:0;font-weight:bold;text-decoration:underline;">( ........................................ )</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. RAB -->
+        <div class="doc-section">
+          <div>
+            ${buildMadrasahKopHtml(origin, `RENCANA ANGGARAN BIAYA (RAB) ${examType}`, true)}
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:28px;">No</th>
+                  <th>Uraian Kebutuhan / Kegiatan</th>
+                  <th style="width:95px;">Volume</th>
+                  <th style="width:110px;">Harga Satuan</th>
+                  <th style="width:115px;">Jumlah</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rabRows}
+                <tr>
+                  <td colspan="4" style="text-align:right;font-weight:bold;background:#ecfdf5 !important;">TOTAL ANGGARAN ${examType}</td>
+                  <td style="text-align:right;font-weight:bold;background:#ecfdf5 !important;color:#065f46;">${formatRupiah(rabTotal)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="signs">
+            <div class="sign-box">
+              <p style="margin:0;">Mengetahui, ${escapeHtml(draft.headmasterTitle)}</p>
+              <div class="sign-space"></div>
+              <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(draft.headmasterName || settings.headmaster)}</p>
+            </div>
+            <div class="sign-box">
+              <p style="margin:0;">Ketua Panitia ${examType},</p>
+              <div class="sign-space"></div>
+              <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(examConfigs[examType].committeeChair)}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 7. Tanda Waktu / Bel -->
+        <div class="doc-section">
+          <div>
+            ${buildMadrasahKopHtml(origin, `TANDA WAKTU / JADWAL BEL PELAKSANAAN ${examType}`, true)}
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:28px;">No</th>
+                  <th style="width:140px;">Kode / Bunyi Bel</th>
+                  <th style="width:180px;">Waktu Pelaksanaan</th>
+                  <th>Keterangan / Instruksi</th>
+                </tr>
+              </thead>
+              <tbody>${bellRows}</tbody>
+            </table>
+          </div>
+          <div class="signs">
+            <div class="sign-box">
+              <p style="margin:0;">Mengetahui,</p>
+              <p style="margin:2px 0 0 0;font-weight:bold;">${escapeHtml(draft.headmasterTitle)}</p>
+              <div class="sign-space"></div>
+              <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(draft.headmasterName || settings.headmaster)}</p>
+              <p style="margin:2px 0 0 0;font-size:10px;">NIP. ${escapeHtml(draft.headmasterNip || settings.headmasterNip)}</p>
+            </div>
+            <div class="sign-box">
+              <p style="margin:0;">Ketua Panitia ${examType}</p>
+              <div class="sign-space"></div>
+              <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(examConfigs[examType].committeeChair)}</p>
+              <p style="margin:2px 0 0 0;font-size:10px;">NIP. ${escapeHtml(examConfigs[examType].committeeChairNip || '-')}</p>
+            </div>
+          </div>
+        </div>
+
+      </body>
+      </html>
+    `;
+
+    printHtmlDocument(batchHtml);
   };
 
   const selectedChecklistItem =
@@ -2226,16 +3099,27 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
                 </div>
               </div>
 
-              {draft.checklist.length > 1 && (
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => deleteChecklistPoint(selectedChecklistItem.id)}
-                  className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-black uppercase flex items-center space-x-1 cursor-pointer"
+                  onClick={handlePrintAllInstrumentsBatch}
+                  className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-teal-700 to-emerald-800 text-white font-black uppercase text-[10px] flex items-center space-x-1.5 shadow-sm hover:from-teal-800 hover:to-emerald-900 cursor-pointer transition-all"
+                  title="Cetak semua dokumen instrumen kelas ini sekaligus kecuali SK Panitia (1 lembar)"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Hapus Poin</span>
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Cetak Semua Sekaligus</span>
                 </button>
-              )}
+                {draft.checklist.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => deleteChecklistPoint(selectedChecklistItem.id)}
+                    className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-black uppercase flex items-center space-x-1 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Hapus Poin</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Common Point Fields synced directly to Instrumen Table */}
@@ -2323,6 +3207,16 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
             {/* SPECIFIC SUB-MENU CONTENT BY POINT */}
             {selectedChecklistItem.subMenuKey === 'sk_panitia' && (
               <div className="space-y-4 text-xs">
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
+                  <div className="flex items-center space-x-2 text-emerald-900 font-black text-sm">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <span>SK Panitia & Ketetapan {examType} Terintegrasi</span>
+                  </div>
+                  <p className="text-emerald-700 text-xs mt-1">
+                    Ketika Anda menekan tombol <strong>Simpan SK Panitia</strong>, nomor SK, tanggal penetapan, waktu pelaksanaan ujian, dan nama ketua panitia akan <strong>otomatis tersimpan &amp; diterapkan ke seluruh dokumen {examType}</strong> (kartu peserta front/back, jadwal, kartu nomor meja, berita acara, daftar hadir, dan instrumen).
+                  </p>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">
@@ -2332,6 +3226,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
                       type="text"
                       value={draft.skNumber}
                       onChange={(e) => setDraft({ ...draft, skNumber: e.target.value })}
+                      placeholder="Contoh: 045/MI-RWS/XI/2026"
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold"
                     />
                   </div>
@@ -2346,10 +3241,50 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold"
                     />
                   </div>
+                  <div>
+                    <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">
+                      Waktu Pelaksanaan Ujian (Periode)
+                    </label>
+                    <input
+                      type="text"
+                      value={draft.periodLabel || ''}
+                      onChange={(e) => setDraft({ ...draft, periodLabel: e.target.value })}
+                      placeholder="Contoh: 2 - 7 Desember 2026"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-emerald-700"
+                    />
+                    <span className="text-[10px] text-slate-500 mt-0.5 block">
+                      Otomatis muncul pada Diktum KEDUA SK, kartu peserta, jadwal, &amp; kartu meja
+                    </span>
+                  </div>
+                  <div>
+                    <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">
+                      Ketua Panitia {examType} (Nama &amp; NIP)
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        value={draft.committeeChair || ''}
+                        onChange={(e) => setDraft({ ...draft, committeeChair: e.target.value })}
+                        placeholder="Nama Ketua Panitia"
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold"
+                      />
+                      <input
+                        type="text"
+                        value={draft.committeeChairNip || ''}
+                        onChange={(e) => setDraft({ ...draft, committeeChairNip: e.target.value })}
+                        placeholder="NIP Ketua (opsional)"
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-[11px]"
+                      />
+                    </div>
+                    <span className="text-[10px] text-slate-500 mt-0.5 block">
+                      Nama &amp; NIP otomatis muncul di tanda tangan seluruh berkas {examType}
+                    </span>
+                  </div>
                 </div>
+
                 <div>
                   <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">
-                    Susunan Panitia {examType}
+                    Susunan Panitia {examType} (Format: Jabatan : Nama (Keterangan))
                   </label>
                   <textarea
                     rows={6}
@@ -2358,14 +3293,26 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
                     className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl font-mono text-xs text-slate-900"
                   />
                 </div>
-                <button
-                  type="button"
-                  onClick={handlePrintSkPanitia}
-                  className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-xs flex items-center space-x-2 cursor-pointer"
-                >
-                  <Printer className="w-4 h-4" />
-                  <span>Cetak SK Panitia {examType} (1 Lembar)</span>
-                </button>
+
+                <div className="flex flex-wrap items-center gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveSkPanitia}
+                    className="px-5 py-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black uppercase text-xs flex items-center space-x-2 cursor-pointer shadow-md shadow-slate-900/10 transition-all active:scale-95"
+                  >
+                    <Save className="w-4 h-4 text-emerald-400" />
+                    <span>Simpan SK Panitia &amp; Terapkan ke Semua Berkas</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handlePrintSkPanitia}
+                    className="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-xs flex items-center space-x-2 cursor-pointer shadow-md shadow-emerald-600/20 transition-all active:scale-95"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>Cetak SK Panitia {examType} (1 Lembar)</span>
+                  </button>
+                </div>
               </div>
             )}
 
@@ -2588,16 +3535,27 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
                           ).length
                         }
                       </strong>{' '}
-                      peserta aktif pada <strong>{subMenuClass}</strong> siap dicetak ke blangko Daftar Hadir.
+                      peserta aktif pada <strong>{subMenuClass}</strong>. Tersedia{' '}
+                      <strong>{getClassSubjectsList(subMenuClass).length}</strong> mata pelajaran untuk dicetak.
                     </div>
-                    <button
-                      type="button"
-                      onClick={handlePrintDaftarHadir}
-                      className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-xs flex items-center space-x-2 cursor-pointer"
-                    >
-                      <Printer className="w-4 h-4" />
-                      <span>Cetak Daftar Hadir {subMenuClass}</span>
-                    </button>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={handlePrintDaftarHadir}
+                        className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-xs flex items-center space-x-2 cursor-pointer shadow-sm transition-all"
+                      >
+                        <Printer className="w-4 h-4" />
+                        <span>Cetak Daftar Hadir ({selectedSubject})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handlePrintDaftarHadirSemuaMapel}
+                        className="px-4 py-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black uppercase text-xs flex items-center space-x-2 cursor-pointer shadow-md shadow-slate-900/15 transition-all"
+                      >
+                        <Layers className="w-4 h-4 text-emerald-400" />
+                        <span>Cetak Semua Mapel Sekaligus ({subMenuClass})</span>
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -2639,14 +3597,24 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-2xl font-semibold"
                       />
                     </div>
-                    <button
-                      type="button"
-                      onClick={handlePrintBeritaAcara}
-                      className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-xs flex items-center space-x-2 cursor-pointer"
-                    >
-                      <Printer className="w-4 h-4" />
-                      <span>Cetak Berita Acara {subMenuClass}</span>
-                    </button>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={handlePrintBeritaAcara}
+                        className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-xs flex items-center space-x-2 cursor-pointer"
+                      >
+                        <Printer className="w-4 h-4" />
+                        <span>Cetak Berita Acara ({selectedSubject})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handlePrintBeritaAcaraSemuaMapel}
+                        className="px-4 py-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black uppercase text-xs flex items-center space-x-2 cursor-pointer shadow-md shadow-slate-900/15"
+                      >
+                        <Layers className="w-4 h-4 text-emerald-400" />
+                        <span>Cetak Semua Mapel Sekaligus ({subMenuClass})</span>
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -2657,7 +3625,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
                         <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-black uppercase text-slate-600">
                           <tr>
                             <th className="py-2 px-3 w-10">No</th>
-                            <th className="py-2 px-3">NIS</th>
+                            <th className="py-2 px-3">NISN</th>
                             <th className="py-2 px-3">Nama Siswa</th>
                             <th className="py-2 px-3 w-28">Input Nilai</th>
                           </tr>
@@ -2668,7 +3636,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
                             .map((st, idx) => (
                               <tr key={st.id}>
                                 <td className="py-1.5 px-3 text-slate-500 font-bold">{idx + 1}</td>
-                                <td className="py-1.5 px-3 font-mono">{st.nis}</td>
+                                <td className="py-1.5 px-3 font-mono">{st.nisn || st.nis || '-'}</td>
                                 <td className="py-1.5 px-3 font-bold text-slate-900">{st.name}</td>
                                 <td className="py-1.5 px-3">
                                   <input
@@ -2686,14 +3654,24 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
                         </tbody>
                       </table>
                     </div>
-                    <button
-                      type="button"
-                      onClick={handlePrintDaftarNilai}
-                      className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-xs flex items-center space-x-2 cursor-pointer"
-                    >
-                      <Printer className="w-4 h-4" />
-                      <span>Cetak Blangko Daftar Nilai {subMenuClass}</span>
-                    </button>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={handlePrintDaftarNilai}
+                        className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-xs flex items-center space-x-2 cursor-pointer"
+                      >
+                        <Printer className="w-4 h-4" />
+                        <span>Cetak Blangko Nilai ({selectedSubject})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handlePrintDaftarNilaiSemuaMapel}
+                        className="px-4 py-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black uppercase text-xs flex items-center space-x-2 cursor-pointer shadow-md shadow-slate-900/15"
+                      >
+                        <Layers className="w-4 h-4 text-emerald-400" />
+                        <span>Cetak Semua Mapel Sekaligus ({subMenuClass})</span>
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

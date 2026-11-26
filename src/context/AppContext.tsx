@@ -206,7 +206,7 @@ interface AppContextType {
   updateExamSchedule: (item: ExamScheduleItem) => void;
   deleteExamSchedule: (id: string) => void;
   copyExamSchedulesToClasses: (examType: ExamType, sourceClass: string, targetClasses: string[]) => number;
-  updateExamConfig: (examType: ExamType, config: ExamMetaConfig) => void;
+  updateExamConfig: (examType: ExamType, config: ExamMetaConfig, silent?: boolean) => void;
   updateExamInstrument: (examType: ExamType, instrument: ExamInstrumentConfig, silent?: boolean) => void;
 }
 
@@ -1573,15 +1573,20 @@ const normalizeSchoolName = (name?: string): string => {
     [examSchedules]
   );
 
-  const updateExamConfig = useCallback((examType: ExamType, config: ExamMetaConfig) => {
-    setExamConfigs((prev) => ({
-      ...prev,
-      [examType]: config,
-    }));
-    saveCloudExamConfig(examType, config);
-    saveSupabaseExamConfig(config);
-    showSuccessToast(`Pengaturan Kartu & Panitia ${examType} berhasil disimpan.`);
-  }, []);
+  const updateExamConfig = useCallback(
+    (examType: ExamType, config: ExamMetaConfig, silent = false) => {
+      setExamConfigs((prev) => ({
+        ...prev,
+        [examType]: config,
+      }));
+      saveCloudExamConfig(examType, config);
+      saveSupabaseExamConfig(config);
+      if (!silent) {
+        showSuccessToast(`Pengaturan Kartu & Panitia ${examType} berhasil disimpan.`);
+      }
+    },
+    []
+  );
 
   const updateExamInstrument = useCallback(
     (examType: ExamType, instrument: ExamInstrumentConfig, silent = false) => {

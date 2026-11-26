@@ -76,11 +76,13 @@ export const AsasAsatView: React.FC = () => {
     accessibleClasses,
     accessibleExamSchedules,
     examConfigs,
+    examInstruments,
     addExamSchedule,
     updateExamSchedule,
     deleteExamSchedule,
     copyExamSchedulesToClasses,
     updateExamConfig,
+    updateExamInstrument,
   } = useApp();
 
   const [examType, setExamType] = useState<ExamType>('ASAS');
@@ -713,6 +715,17 @@ export const AsasAsatView: React.FC = () => {
 
   const handleSaveCardConfig = () => {
     updateExamConfig(examType, configDraft);
+    const currentInst = examInstruments[examType];
+    if (currentInst) {
+      updateExamInstrument(examType, {
+        ...currentInst,
+        periodLabel: configDraft.periodLabel || currentInst.periodLabel,
+        committeeChair: configDraft.committeeChair || currentInst.committeeChair,
+        committeeChairNip: configDraft.committeeChairNip || currentInst.committeeChairNip,
+        skNumber: configDraft.skNumber || currentInst.skNumber,
+        skDate: configDraft.skDate || currentInst.skDate,
+      }, true);
+    }
   };
 
   const handlePrintExamCards = () => {
@@ -1611,7 +1624,7 @@ export const AsasAsatView: React.FC = () => {
                 >
                   {accessibleStudents.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name} ({s.className} - NIS: {s.nis})
+                      {s.name} ({s.className} - NISN: {s.nisn || s.nis || '-'})
                     </option>
                   ))}
                 </select>

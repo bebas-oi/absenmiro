@@ -624,6 +624,8 @@ export const initialExamConfigs: Record<ExamType, ExamMetaConfig> = {
     participantPrefix: 'ASAS-26',
     cardTheme: 'emerald',
     backMode: 'schedule',
+    skNumber: '045/MI-RWS/XI/2026',
+    skDate: '2026-11-20',
   },
   ASAT: {
     examType: 'ASAT',
@@ -636,6 +638,8 @@ export const initialExamConfigs: Record<ExamType, ExamMetaConfig> = {
     participantPrefix: 'ASAT-27',
     cardTheme: 'navy',
     backMode: 'schedule',
+    skNumber: '089/MI-RWS/V/2027',
+    skDate: '2027-05-20',
   },
 };
 
@@ -812,6 +816,9 @@ export const initialExamInstruments: Record<ExamType, ExamInstrumentConfig> = {
       { id: 'bel-4', signal: 'Bel 1x Pendek', timing: '10 Menit Sebelum Selesai', meaning: 'Peringatan sisa waktu pengerjaan tinggal 10 menit' },
       { id: 'bel-5', signal: 'Bel 3x Panjang', timing: '09:00 / Jam Selesai', meaning: 'Waktu ujian berakhir, lembar jawab dikumpulkan ke pengawas' },
     ],
+    periodLabel: '2 - 7 Desember 2026',
+    committeeChair: 'Ustadz Muhammad Ridwan, M.Pd',
+    committeeChairNip: '198003222005011004',
   },
   ASAT: {
     examType: 'ASAT',
@@ -871,6 +878,9 @@ export const initialExamInstruments: Record<ExamType, ExamInstrumentConfig> = {
       { id: 'bel-asat-4', signal: 'Bel 1x Pendek', timing: '10 Menit Sebelum Selesai', meaning: 'Peringatan sisa waktu pengerjaan tinggal 10 menit' },
       { id: 'bel-asat-5', signal: 'Bel 3x Panjang', timing: '09:00 / Jam Selesai', meaning: 'Waktu ujian berakhir, lembar jawab dikumpulkan ke pengawas' },
     ],
+    periodLabel: '2 - 7 Juni 2027',
+    committeeChair: 'Ustadzah Lailatul Badriyah, S.Pd.I',
+    committeeChairNip: '198704082011012015',
   },
 };
 

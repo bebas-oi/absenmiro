@@ -165,6 +165,8 @@ export interface ExamMetaConfig {
   participantPrefix: string;
   cardTheme: 'emerald' | 'navy' | 'gold' | 'modern';
   backMode: 'schedule' | 'rules';
+  skNumber?: string;
+  skDate?: string;
 }
 
 export type ExamChecklistStatus = 'ada' | 'tidak_ada' | 'kosong';
@@ -263,6 +265,9 @@ export interface ExamInstrumentConfig {
   beritaAcaraNotes: string;
   rabItems: ExamRabItem[];
   bellSchedule: ExamBellItem[];
+  periodLabel?: string;
+  committeeChair?: string;
+  committeeChairNip?: string;
 }
 
 export type ActiveTab = 
