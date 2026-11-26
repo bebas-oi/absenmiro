@@ -448,40 +448,62 @@ export const AsasAsatView: React.FC = () => {
       const roomName = getRoomForClass(student.className);
       const scheds = getClassScheduleSummary(student.className);
 
+      const midIndex = Math.ceil(scheds.length / 2);
+      const leftScheds = scheds.slice(0, midIndex);
+      const rightScheds = scheds.slice(midIndex);
+
+      const renderScheduleTable = (items: typeof scheds) => `
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 28%;">Hari/Tgl</th>
+              <th style="width: 19%;">Jam</th>
+              <th>Mapel</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items
+              .map(
+                (sc) => `
+                <tr>
+                  <td style="white-space:nowrap;">${(sc.dayName || '').slice(0, 3)}, ${(sc.date || '').length >= 5 ? sc.date.slice(5) : sc.date || '-'}</td>
+                  <td style="font-family:monospace; font-weight:700; white-space:nowrap;">${sc.timeStart}</td>
+                  <td style="word-break:break-word;"><strong>${sc.subject}</strong></td>
+                </tr>
+              `
+              )
+              .join('')}
+          </tbody>
+        </table>
+      `;
+
       const backContentHtml =
         configDraft.backMode === 'schedule'
           ? `
           <div class="back-header" style="color: ${theme.accentColor};">
             JADWAL ${examType} &bull; ${student.className.toUpperCase()}
           </div>
-          <div class="back-schedule">
-            <table>
-              <thead>
-                <tr>
-                  <th style="width: 24%;">Hari/Tgl</th>
-                  <th style="width: 18%;">Jam</th>
-                  <th>Mata Pelajaran</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${
-                  scheds.length > 0
-                    ? scheds
-                        .slice(0, 10)
-                        .map(
-                          (sc) => `
-                      <tr>
-                        <td style="white-space:nowrap;">${(sc.dayName || '').slice(0, 3)}, ${sc.date.slice(5)}</td>
-                        <td style="font-family:monospace; font-weight:700;">${sc.timeStart}</td>
-                        <td><strong>${sc.subject}</strong></td>
-                      </tr>
-                    `
-                        )
-                        .join('')
-                    : '<tr><td colspan="3" style="text-align:center; padding:8px; color:#94a3b8;">Jadwal belum diatur</td></tr>'
-                }
-              </tbody>
-            </table>
+          <div class="back-schedule-wrap">
+            <div class="back-schedule ${rightScheds.length > 0 ? 'back-schedule-grid' : ''}">
+              ${
+                scheds.length === 0
+                  ? `<div class="back-schedule-empty">Jadwal belum diatur untuk kelas ini</div>`
+                  : rightScheds.length > 0
+                    ? `${renderScheduleTable(leftScheds)}${renderScheduleTable(rightScheds)}`
+                    : renderScheduleTable(leftScheds)
+              }
+            </div>
+            <div class="back-rules-compact">
+              <div class="back-rules-title" style="color: ${theme.accentColor};">
+                TATA TERTIB PESERTA ${examType}
+              </div>
+              <ol>
+                <li>Peserta wajib hadir 15 menit sebelum bel ujian dimulai.</li>
+                <li>Kartu peserta wajib dibawa dan diletakkan di atas meja selama ujian.</li>
+                <li>Dilarang membawa alat komunikasi atau catatan dalam bentuk apa pun.</li>
+                <li>Jika kartu hilang/rusak, segera melapor ke Panitia ${examType}.</li>
+              </ol>
+            </div>
           </div>
           <div class="back-footer">
             PANITIA ${examType} ${settings.schoolName} &bull; TA ${configDraft.academicYear}
@@ -822,33 +844,87 @@ export const AsasAsatView: React.FC = () => {
 
           /* Back Card matching live preview */
           .exam-card.back {
-            padding: 2.5mm 3mm;
+            padding: 1.8mm 2.5mm;
             background-color: #f8fafc !important;
           }
           .back-header {
             text-align: center;
             font-weight: 900;
-            font-size: 7.2pt;
+            font-size: 6.8pt;
             text-transform: uppercase;
             border-bottom: 1px solid #cbd5e1;
-            padding-bottom: 1mm;
-            margin-bottom: 1mm;
+            padding-bottom: 0.7mm;
+            margin-bottom: 0.9mm;
           }
-          .back-schedule { flex: 1; overflow: hidden; }
-          .back-schedule table { width: 100%; border-collapse: collapse; font-size: 5.3pt; }
+          .back-schedule-wrap {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            gap: 1.1mm;
+            overflow: hidden;
+          }
+          .back-schedule { overflow: hidden; }
+          .back-schedule-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5mm;
+            align-items: start;
+          }
+          .back-schedule-empty {
+            text-align: center;
+            padding: 4mm 2mm;
+            color: #94a3b8;
+            font-size: 5.8pt;
+            border: 0.5px solid #e2e8f0;
+            background: #ffffff;
+          }
+          .back-schedule table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 4.3pt;
+            line-height: 1.12;
+            table-layout: fixed;
+          }
           .back-schedule th {
             background-color: #e2e8f0 !important;
             color: #1e293b !important;
             font-weight: 900;
-            padding: 0.7mm 1.2mm;
+            padding: 0.42mm 0.65mm;
             text-align: left;
             border: 0.5px solid #cbd5e1;
           }
           .back-schedule td {
             background-color: #ffffff !important;
-            padding: 0.55mm 1.2mm;
+            padding: 0.35mm 0.65mm;
             border: 0.5px solid #e2e8f0;
             color: #334155 !important;
+            vertical-align: top;
+          }
+          .back-rules-compact {
+            background-color: #ffffff !important;
+            border: 0.5px solid #cbd5e1;
+            border-radius: 1mm;
+            padding: 0.8mm 1.4mm;
+          }
+          .back-rules-title {
+            font-size: 4.8pt;
+            font-weight: 900;
+            text-transform: uppercase;
+            margin-bottom: 0.35mm;
+            border-bottom: 0.5px solid #e2e8f0;
+            padding-bottom: 0.25mm;
+          }
+          .back-rules-compact ol {
+            margin: 0;
+            padding-left: 2.8mm;
+            font-size: 4.3pt;
+            line-height: 1.22;
+            color: #334155 !important;
+            font-weight: 600;
+          }
+          .back-rules-compact li {
+            margin-bottom: 0.15mm;
           }
           .back-body { flex: 1; display: flex; flex-direction: column; justify-content: center; }
           .back-body ol { margin: 1mm 0 0 0; padding-left: 4mm; font-size: 6.2pt; color: #334155 !important; line-height: 1.4; font-weight: 600; }
@@ -1567,52 +1643,77 @@ export const AsasAsatView: React.FC = () => {
                 </div>
 
                 {/* BACK PREVIEW (Ratio matches 93mm x 67mm) */}
-                <div className="w-[330px] h-[238px] rounded-2xl border border-slate-300 shadow-lg bg-slate-50 p-3 flex flex-col justify-between text-slate-800 text-[8px]">
+                <div className="w-[330px] h-[238px] rounded-2xl border border-slate-300 shadow-lg bg-slate-50 p-2 flex flex-col justify-between text-slate-800 text-[8px]">
                   {configDraft.backMode === 'schedule' ? (
                     <>
                       <div
-                        className={`text-center font-black uppercase border-b border-slate-300 pb-1 text-[9px] ${theme.textAccent}`}
+                        className={`text-center font-black uppercase border-b border-slate-300 pb-0.5 text-[8.5px] ${theme.textAccent}`}
                       >
                         Jadwal {examType} • {selectedStudent.className}
                       </div>
-                      <div className="flex-1 overflow-y-auto my-1.5">
-                        <table className="w-full text-left text-[7px] border-collapse">
-                          <thead>
-                            <tr className="bg-slate-200 text-slate-800 font-black">
-                              <th className="p-1 border border-slate-300">Hari/Tgl</th>
-                              <th className="p-1 border border-slate-300">Jam</th>
-                              <th className="p-1 border border-slate-300">Mata Pelajaran</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {previewScheduleItems.length === 0 ? (
-                              <tr>
-                                <td
-                                  colSpan={3}
-                                  className="p-2 text-center text-slate-400 border border-slate-200 bg-white"
-                                >
-                                  Belum ada jadwal untuk {selectedStudent.className}
-                                </td>
-                              </tr>
+                      <div className="flex-1 overflow-y-auto my-1 space-y-1">
+                        {previewScheduleItems.length === 0 ? (
+                          <div className="p-2 text-center text-[7px] text-slate-400 border border-slate-200 bg-white rounded">
+                            Belum ada jadwal untuk {selectedStudent.className}
+                          </div>
+                        ) : (
+                          (() => {
+                            const midIdx = Math.ceil(previewScheduleItems.length / 2);
+                            const leftItems = previewScheduleItems.slice(0, midIdx);
+                            const rightItems = previewScheduleItems.slice(midIdx);
+                            const renderPreviewTable = (items: typeof previewScheduleItems) => (
+                              <table className="w-full text-left text-[5.5px] leading-tight border-collapse table-fixed">
+                                <thead>
+                                  <tr className="bg-slate-200 text-slate-800 font-black">
+                                    <th className="p-0.5 border border-slate-300 w-[29%]">Hari/Tgl</th>
+                                    <th className="p-0.5 border border-slate-300 w-[20%]">Jam</th>
+                                    <th className="p-0.5 border border-slate-300">Mapel</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {items.map((sc) => (
+                                    <tr key={sc.id} className="bg-white">
+                                      <td className="p-0.5 border border-slate-200 whitespace-nowrap">
+                                        {(sc.dayName || '').slice(0, 3)},{' '}
+                                        {(sc.date || '').length >= 5 ? sc.date.slice(5) : sc.date || '-'}
+                                      </td>
+                                      <td className="p-0.5 border border-slate-200 font-mono font-bold whitespace-nowrap">
+                                        {sc.timeStart}
+                                      </td>
+                                      <td className="p-0.5 border border-slate-200 font-bold break-words">
+                                        {sc.subject}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            );
+
+                            return rightItems.length > 0 ? (
+                              <div className="grid grid-cols-2 gap-1.5 items-start">
+                                {renderPreviewTable(leftItems)}
+                                {renderPreviewTable(rightItems)}
+                              </div>
                             ) : (
-                              previewScheduleItems.slice(0, 10).map((sc) => (
-                                <tr key={sc.id} className="bg-white">
-                                  <td className="p-0.5 px-1 border border-slate-200 whitespace-nowrap">
-                                    {(sc.dayName || '').slice(0, 3)}, {sc.date.slice(5)}
-                                  </td>
-                                  <td className="p-0.5 px-1 border border-slate-200 font-mono font-bold">
-                                    {sc.timeStart}
-                                  </td>
-                                  <td className="p-0.5 px-1 border border-slate-200 font-bold truncate max-w-[145px]">
-                                    {sc.subject}
-                                  </td>
-                                </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
+                              renderPreviewTable(leftItems)
+                            );
+                          })()
+                        )}
+                        <div className="bg-white border border-slate-300 rounded px-1.5 py-1">
+                          <div
+                            className={`text-[6.2px] font-black uppercase border-b border-slate-200 pb-0.5 mb-0.5 ${theme.textAccent}`}
+                          >
+                            Tata Tertib Peserta {examType}
+                          </div>
+                          <ol className="list-decimal pl-3 text-[5.6px] leading-tight text-slate-700 font-semibold space-y-0.5">
+                            <li>Peserta wajib hadir 15 menit sebelum bel ujian dimulai.</li>
+                            <li>Kartu peserta wajib dibawa dan diletakkan di atas meja selama ujian.</li>
+                            <li>Dilarang membawa alat komunikasi atau catatan dalam bentuk apa pun.</li>
+                            <li>Jika kartu hilang/rusak, segera melapor ke Panitia {examType}.</li>
+                          </ol>
+                        </div>
                       </div>
-                      <div className="text-[6.5px] text-slate-400 text-center border-t border-slate-200 pt-1 font-bold uppercase">
+                      <div className="text-[6.2px] text-slate-400 text-center border-t border-slate-200 pt-0.5 font-bold uppercase">
                         PANITIA {examType} {settings.schoolName} • TA {configDraft.academicYear}
                       </div>
                     </>
