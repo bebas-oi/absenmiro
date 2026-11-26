@@ -2,6 +2,10 @@ import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabase';
 import {
   AttendanceRecord,
   ClassRoom,
+  ExamInstrumentConfig,
+  ExamMetaConfig,
+  ExamScheduleItem,
+  ExamType,
   SchoolSettings,
   Student,
   Teacher,
@@ -109,6 +113,43 @@ CREATE TABLE IF NOT EXISTS public.attendance (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 7. Tabel Jadwal Ujian ASAS & ASAT (Exam Schedules)
+CREATE TABLE IF NOT EXISTS public.exam_schedules (
+  id TEXT PRIMARY KEY,
+  exam_type TEXT NOT NULL,
+  class_name TEXT NOT NULL,
+  date TEXT NOT NULL,
+  day_name TEXT,
+  time_start TEXT NOT NULL,
+  time_end TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  room TEXT,
+  supervisor TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 8. Tabel Konfigurasi Kartu & Panitia ASAS/ASAT (Exam Configs)
+CREATE TABLE IF NOT EXISTS public.exam_configs (
+  exam_type TEXT PRIMARY KEY,
+  academic_year TEXT,
+  semester TEXT,
+  period_label TEXT,
+  committee_chair TEXT,
+  committee_chair_nip TEXT,
+  default_room TEXT,
+  participant_prefix TEXT,
+  card_theme TEXT DEFAULT 'emerald',
+  back_mode TEXT DEFAULT 'schedule',
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 9. Tabel Instrumen & Kelengkapan Administrasi ASAS/ASAT (Exam Instruments)
+CREATE TABLE IF NOT EXISTS public.exam_instruments (
+  exam_type TEXT PRIMARY KEY,
+  payload JSONB NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Disable Row Level Security (RLS) or add public read/write policy for Kiosk & App
 ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.classes ENABLE ROW LEVEL SECURITY;
@@ -116,6 +157,9 @@ ALTER TABLE public.teachers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attendance ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_schedules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_configs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_instruments ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow all public access to settings" ON public.settings FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all public access to classes" ON public.classes FOR ALL USING (true) WITH CHECK (true);
@@ -123,6 +167,9 @@ CREATE POLICY "Allow all public access to teachers" ON public.teachers FOR ALL U
 CREATE POLICY "Allow all public access to users" ON public.users FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all public access to students" ON public.students FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all public access to attendance" ON public.attendance FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all public access to exam_schedules" ON public.exam_schedules FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all public access to exam_configs" ON public.exam_configs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all public access to exam_instruments" ON public.exam_instruments FOR ALL USING (true) WITH CHECK (true);
 
 -- Aktifkan Supabase Realtime agar scanner di gerbang & dashboard langsung sinkron
 BEGIN;
@@ -133,7 +180,10 @@ BEGIN;
     public.teachers, 
     public.users, 
     public.students, 
-    public.attendance;
+    public.attendance,
+    public.exam_schedules,
+    public.exam_configs,
+    public.exam_instruments;
 COMMIT;
 `;
 
@@ -168,7 +218,7 @@ function mapSettingsToDb(s: SchoolSettings) {
 
 function mapDbToSettings(d: any): SchoolSettings {
   return {
-    schoolName: d.school_name || 'MI Ma\'arif Rowosari',
+    schoolName: d.school_name || 'MI Islamiyah Rowosari',
     subTitle: d.sub_title || 'Sistem Presensi Kartu RFID Terpadu',
     nsm: d.nsm || '111233240015',
     npsn: d.npsn || '60711928',
@@ -594,6 +644,186 @@ export async function deleteSupabaseAttendance(id: string): Promise<boolean> {
   }
 }
 
+function mapExamScheduleToDb(item: ExamScheduleItem) {
+  return {
+    id: item.id,
+    exam_type: item.examType,
+    class_name: item.className,
+    date: item.date,
+    day_name: item.dayName || '',
+    time_start: item.timeStart,
+    time_end: item.timeEnd,
+    subject: item.subject,
+    room: item.room || '',
+    supervisor: item.supervisor || '',
+  };
+}
+
+function mapDbToExamSchedule(d: any): ExamScheduleItem {
+  return {
+    id: d.id,
+    examType: (d.exam_type === 'ASAT' ? 'ASAT' : 'ASAS') as ExamType,
+    className: d.class_name,
+    date: d.date,
+    dayName: d.day_name || '',
+    timeStart: d.time_start,
+    timeEnd: d.time_end,
+    subject: d.subject,
+    room: d.room || '',
+    supervisor: d.supervisor || '',
+  };
+}
+
+function mapExamConfigToDb(c: ExamMetaConfig) {
+  return {
+    exam_type: c.examType,
+    academic_year: c.academicYear,
+    semester: c.semester,
+    period_label: c.periodLabel,
+    committee_chair: c.committeeChair,
+    committee_chair_nip: c.committeeChairNip || '',
+    default_room: c.defaultRoom,
+    participant_prefix: c.participantPrefix,
+    card_theme: c.cardTheme,
+    back_mode: c.backMode,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function mapDbToExamConfig(d: any): ExamMetaConfig {
+  return {
+    examType: (d.exam_type === 'ASAT' ? 'ASAT' : 'ASAS') as ExamType,
+    academicYear: d.academic_year || '2026/2027',
+    semester: d.semester || 'Ganjil (I)',
+    periodLabel: d.period_label || '',
+    committeeChair: d.committee_chair || '',
+    committeeChairNip: d.committee_chair_nip || '',
+    defaultRoom: d.default_room || 'Ruang 01',
+    participantPrefix: d.participant_prefix || 'ASAS-26',
+    cardTheme: d.card_theme || 'emerald',
+    backMode: d.back_mode === 'rules' ? 'rules' : 'schedule',
+  };
+}
+
+export async function fetchSupabaseExamSchedules(): Promise<ExamScheduleItem[] | null> {
+  const sb = getSupabaseClient();
+  if (!sb) return null;
+  try {
+    const { data, error } = await sb.from('exam_schedules').select('*').order('date', { ascending: true });
+    if (error || !data) return null;
+    return data.map(mapDbToExamSchedule);
+  } catch (err) {
+    console.warn('[Supabase] Fetch exam schedules warning:', err);
+    return null;
+  }
+}
+
+export async function saveSupabaseExamSchedule(item: ExamScheduleItem): Promise<boolean> {
+  const sb = getSupabaseClient();
+  if (!sb) return false;
+  try {
+    const { error } = await sb.from('exam_schedules').upsert(mapExamScheduleToDb(item));
+    return !error;
+  } catch (err) {
+    console.error('[Supabase] Save exam schedule error:', err);
+    return false;
+  }
+}
+
+export async function batchSaveSupabaseExamSchedules(items: ExamScheduleItem[]): Promise<boolean> {
+  const sb = getSupabaseClient();
+  if (!sb || items.length === 0) return false;
+  try {
+    const { error } = await sb.from('exam_schedules').upsert(items.map(mapExamScheduleToDb));
+    return !error;
+  } catch (err) {
+    console.error('[Supabase] Batch save exam schedules error:', err);
+    return false;
+  }
+}
+
+export async function deleteSupabaseExamSchedule(id: string): Promise<boolean> {
+  const sb = getSupabaseClient();
+  if (!sb) return false;
+  try {
+    const { error } = await sb.from('exam_schedules').delete().eq('id', id);
+    return !error;
+  } catch (err) {
+    console.error('[Supabase] Delete exam schedule error:', err);
+    return false;
+  }
+}
+
+export async function fetchSupabaseExamConfigs(): Promise<Partial<Record<ExamType, ExamMetaConfig>> | null> {
+  const sb = getSupabaseClient();
+  if (!sb) return null;
+  try {
+    const { data, error } = await sb.from('exam_configs').select('*');
+    if (error || !data) return null;
+    const res: Partial<Record<ExamType, ExamMetaConfig>> = {};
+    data.forEach((row: any) => {
+      const mapped = mapDbToExamConfig(row);
+      res[mapped.examType] = mapped;
+    });
+    return res;
+  } catch (err) {
+    console.warn('[Supabase] Fetch exam configs warning:', err);
+    return null;
+  }
+}
+
+export async function saveSupabaseExamConfig(config: ExamMetaConfig): Promise<boolean> {
+  const sb = getSupabaseClient();
+  if (!sb) return false;
+  try {
+    const { error } = await sb.from('exam_configs').upsert(mapExamConfigToDb(config));
+    return !error;
+  } catch (err) {
+    console.error('[Supabase] Save exam config error:', err);
+    return false;
+  }
+}
+
+export async function fetchSupabaseExamInstruments(): Promise<
+  Partial<Record<ExamType, ExamInstrumentConfig>> | null
+> {
+  const sb = getSupabaseClient();
+  if (!sb) return null;
+  try {
+    const { data, error } = await sb.from('exam_instruments').select('*');
+    if (error || !data) return null;
+    const res: Partial<Record<ExamType, ExamInstrumentConfig>> = {};
+    data.forEach((row: any) => {
+      const key = (row.exam_type === 'ASAT' ? 'ASAT' : 'ASAS') as ExamType;
+      if (row.payload) {
+        res[key] = row.payload as ExamInstrumentConfig;
+      }
+    });
+    return res;
+  } catch (err) {
+    console.warn('[Supabase] Fetch exam instruments warning:', err);
+    return null;
+  }
+}
+
+export async function saveSupabaseExamInstrument(
+  instrument: ExamInstrumentConfig
+): Promise<boolean> {
+  const sb = getSupabaseClient();
+  if (!sb) return false;
+  try {
+    const { error } = await sb.from('exam_instruments').upsert({
+      exam_type: instrument.examType,
+      payload: instrument,
+      updated_at: new Date().toISOString(),
+    });
+    return !error;
+  } catch (err) {
+    console.error('[Supabase] Save exam instrument error:', err);
+    return false;
+  }
+}
+
 // ==========================================
 // REAL-TIME SUBSCRIPTION
 // ==========================================
@@ -604,6 +834,7 @@ export function subscribeSupabaseChanges(callbacks: {
   onClassChange?: () => void;
   onTeacherChange?: () => void;
   onUserChange?: () => void;
+  onExamScheduleChange?: () => void;
 }): () => void {
   const sb = getSupabaseClient();
   if (!sb) return () => {};
@@ -644,6 +875,11 @@ export function subscribeSupabaseChanges(callbacks: {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'users' },
         () => callbacks.onUserChange?.()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'exam_schedules' },
+        () => callbacks.onExamScheduleChange?.()
       )
       .subscribe();
 

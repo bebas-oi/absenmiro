@@ -111,6 +111,59 @@
         "timestamp": { "type": "number" }
       },
       "required": ["id", "studentId", "date", "status"]
+    },
+    "exam_schedules": {
+      "title": "ExamScheduleItem",
+      "description": "ASAS and ASAT exam schedules per class",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "examType": { "type": "string", "enum": ["ASAS", "ASAT"] },
+        "className": { "type": "string" },
+        "date": { "type": "string" },
+        "dayName": { "type": "string" },
+        "timeStart": { "type": "string" },
+        "timeEnd": { "type": "string" },
+        "subject": { "type": "string" },
+        "room": { "type": "string" },
+        "supervisor": { "type": "string" }
+      },
+      "required": ["id", "examType", "className", "date", "subject"]
+    },
+    "exam_configs": {
+      "title": "ExamMetaConfig",
+      "description": "ASAS and ASAT exam metadata and card print configuration",
+      "type": "object",
+      "properties": {
+        "examType": { "type": "string", "enum": ["ASAS", "ASAT"] },
+        "academicYear": { "type": "string" },
+        "semester": { "type": "string" },
+        "periodLabel": { "type": "string" },
+        "committeeChair": { "type": "string" },
+        "committeeChairNip": { "type": "string" },
+        "defaultRoom": { "type": "string" },
+        "participantPrefix": { "type": "string" },
+        "cardTheme": { "type": "string" },
+        "backMode": { "type": "string" }
+      },
+      "required": ["examType", "academicYear"]
+    },
+    "exam_instruments": {
+      "title": "ExamInstrumentConfig",
+      "description": "ASAS and ASAT supervision instrument and administration sub-menu configuration",
+      "type": "object",
+      "properties": {
+        "examType": { "type": "string", "enum": ["ASAS", "ASAT"] },
+        "kopLine1": { "type": "string" },
+        "kopLine2": { "type": "string" },
+        "kopLine3": { "type": "string" },
+        "kopAddress": { "type": "string" },
+        "instrumentTitle": { "type": "string" },
+        "academicYearLabel": { "type": "string" },
+        "madrasahName": { "type": "string" },
+        "supervisorName": { "type": "string" }
+      },
+      "required": ["examType", "instrumentTitle"]
     }
   },
   "firestore": {
@@ -138,6 +191,18 @@
       "attendance": {
         "entity": "attendance",
         "description": "Attendance transaction logs"
+      },
+      "exam_schedules": {
+        "entity": "exam_schedules",
+        "description": "ASAS & ASAT exam schedules per class"
+      },
+      "exam_configs": {
+        "entity": "exam_configs",
+        "description": "ASAS & ASAT card and exam configurations"
+      },
+      "exam_instruments": {
+        "entity": "exam_instruments",
+        "description": "ASAS & ASAT supervision instrument and administration checklists"
       }
     }
   }

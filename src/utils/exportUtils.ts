@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { AttendanceRecord, SchoolSettings, Student } from '../types';
+import { buildOfficialKopHtml, printHtmlDocument } from './printUtils';
 
 export function exportAttendanceToExcel(
   records: AttendanceRecord[],
@@ -36,11 +37,15 @@ export function exportAttendanceToExcel(
   const totalAlpa = records.filter((r) => r.status === 'ALPA').length;
 
   const headerRows = [
-    [settings.subTitle],
-    [settings.schoolName],
+    ['LEMBAGA PENDIDIKAN MA’ARIF NU'],
+    ['“MI ISLAMIYAH ROWOSARI”'],
+    ['BADAN HUKUM PERKUMPULAN NAHDLATUL ULAMA'],
+    ['SK MENKUMHAM NO. AHU-119.AH.01.08 TAHUN 2013'],
+    ['Status : Terakreditasi B, NSM : 111233250075, NPSN : 60713227'],
+    ['e-mail : miirowosari@yahoo.co.id / miirowosari@gmail.com'],
+    ['Alamat : Jl. Masjid Adiloko, No.03, Rt.04/Rw.04, Rowosari, Limpung, Batang'],
+    [],
     [`LAPORAN REKAPITULASI PRESENSI SISWA (${title.toUpperCase()})`],
-    [`NSM: ${settings.nsm} | NPSN: ${settings.npsn}`],
-    [`Alamat: ${settings.address}`],
     [`Periode: ${filterInfo.period.toUpperCase()}` + (filterInfo.startDate ? ` (${filterInfo.startDate} s/d ${filterInfo.endDate})` : '')],
     [`Filter Kelas: ${filterInfo.classFilter}` + (filterInfo.studentName ? ` | Siswa: ${filterInfo.studentName}` : '')],
     [],
@@ -52,7 +57,7 @@ export function exportAttendanceToExcel(
 
   // Create worksheet
   const ws = XLSX.utils.aoa_to_sheet(headerRows);
-  XLSX.utils.sheet_add_json(ws, dataRows, { origin: 'A13' });
+  XLSX.utils.sheet_add_json(ws, dataRows, { origin: 'A17' });
 
   // Set column widths
   ws['!cols'] = [
@@ -74,7 +79,7 @@ export function exportAttendanceToExcel(
 
   // File name
   const cleanDate = new Date().toISOString().slice(0, 10);
-  const fileName = `Laporan_Absensi_MI_Rowosari_${filterInfo.period}_${cleanDate}.xlsx`;
+  const fileName = `Laporan_Absensi_MI_Islamiyah_Rowosari_${filterInfo.period}_${cleanDate}.xlsx`;
   
   XLSX.writeFile(wb, fileName);
 }
@@ -99,12 +104,6 @@ export function printFormalReport(
   const totalAlpa = records.filter((r) => r.status === 'ALPA').length;
   const totalAbsen = records.length;
   const persenKehadiran = totalAbsen > 0 ? (((totalHadir + totalTerlambat) / totalAbsen) * 100).toFixed(1) : '0';
-
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
-    alert('Harap izinkan popup browser untuk mencetak laporan.');
-    return;
-  }
 
   const tableRows = records
     .map(
@@ -135,13 +134,22 @@ export function printFormalReport(
     year: 'numeric',
   }).format(new Date());
 
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+
   const htmlContent = `
     <!DOCTYPE html>
     <html lang="id">
     <head>
+      <base href="${origin}/" />
       <meta charset="UTF-8">
-      <title>Laporan Presensi Siswa - ${settings.schoolName}</title>
+      <title>Laporan Presensi Siswa - MI Islamiyah Rowosari</title>
       <style>
+        *, *::before, *::after {
+          box-sizing: border-box;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
         body {
           font-family: Arial, Helvetica, sans-serif;
           margin: 20px;
@@ -149,44 +157,88 @@ export function printFormalReport(
           background: #fff;
         }
         .kop-header {
+          position: relative;
+          width: 100%;
+          min-height: 76px;
           display: flex;
           align-items: center;
           justify-content: center;
-          border-bottom: 3px double #000;
-          padding-bottom: 12px;
-          margin-bottom: 16px;
-          position: relative;
+          padding-bottom: 6px;
         }
         .logo-box {
           position: absolute;
-          left: 10px;
-          top: 5px;
-          width: 70px;
-          height: 70px;
+          left: 0;
+          top: 50%;
+          transform: translateY(-50%);
+          width: 74px;
+          height: 74px;
           display: flex;
           align-items: center;
           justify-content: center;
         }
+        .logo-box img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+        }
+        .kop-rule {
+          border-top: 3px solid #000000;
+          border-bottom: 1px solid #000000;
+          height: 5px;
+          margin: 4px 0 16px 0;
+        }
         .header-text {
+          width: 100%;
           text-align: center;
-          line-height: 1.3;
+          padding: 0 82px;
+          font-family: 'Century Gothic', 'Trebuchet MS', Arial, Helvetica, sans-serif;
+          line-height: 1.24;
+          color: #000000;
         }
-        .header-text h4 {
-          margin: 0;
-          font-size: 13px;
-          font-weight: 600;
-          letter-spacing: 0.5px;
+        .kop-line-1 {
+          font-size: 13.5px;
+          font-weight: 700;
+          letter-spacing: 0.3px;
+          text-transform: uppercase;
         }
-        .header-text h2 {
-          margin: 3px 0;
-          font-size: 18px;
+        .kop-line-2 {
+          font-size: 19px;
           font-weight: 800;
-          color: #065f46;
+          letter-spacing: 0.4px;
+          text-transform: uppercase;
+          margin: 1px 0;
         }
-        .header-text p {
-          margin: 2px 0;
-          font-size: 11px;
-          color: #334155;
+        .kop-line-3 {
+          font-size: 13.5px;
+          font-weight: 700;
+          text-transform: uppercase;
+        }
+        .kop-line-4 {
+          font-size: 10px;
+          font-weight: 700;
+          text-transform: uppercase;
+          margin-top: 1px;
+        }
+        .kop-line-5 {
+          font-size: 10.5px;
+          font-weight: 700;
+          margin-top: 1px;
+        }
+        .kop-line-6 {
+          font-size: 10.5px;
+          font-weight: 700;
+          color: #2563eb;
+          margin-top: 1px;
+        }
+        .kop-line-6 a {
+          color: #2563eb;
+          text-decoration: underline;
+        }
+        .kop-line-7 {
+          font-size: 10.5px;
+          font-weight: 700;
+          font-style: italic;
+          margin-top: 1px;
         }
         .title-section {
           text-align: center;
@@ -262,21 +314,7 @@ export function printFormalReport(
       </style>
     </head>
     <body>
-      <div class="kop-header">
-        <div class="logo-box">
-          <svg viewBox="0 0 100 100" width="65" height="65" fill="#047857">
-            <polygon points="50,5 90,25 90,75 50,95 10,75 10,25" stroke="#047857" stroke-width="4" fill="#ecfdf5"/>
-            <path d="M50,20 L75,35 L75,65 L50,80 L25,65 L25,35 Z" fill="#047857"/>
-            <text x="50" y="55" font-size="16" font-weight="bold" fill="white" text-anchor="middle" font-family="Arial">MI</text>
-          </svg>
-        </div>
-        <div class="header-text">
-          <h4>${settings.subTitle}</h4>
-          <h2>${settings.schoolName}</h2>
-          <p>NSM: ${settings.nsm} | NPSN: ${settings.npsn} | Status: Terakreditasi A</p>
-          <p>${settings.address}</p>
-        </div>
-      </div>
+      ${buildOfficialKopHtml(origin)}
 
       <div class="title-section">
         <h3>LAPORAN REKAPITULASI PRESENSI SISWA</h3>
@@ -328,26 +366,16 @@ export function printFormalReport(
         </div>
 
         <div class="sign-box">
-          <p style="margin: 0;">Kendal, ${todayFormatted}</p>
+          <p style="margin: 0;">Rowosari, ${todayFormatted}</p>
           <p style="margin: 2px 0 0 0; font-weight: 600;">Petugas Operator Presensi</p>
           <div class="sign-space"></div>
           <p style="font-weight: 800; text-decoration: underline; margin: 0;">Staff Tata Usaha</p>
-          <p style="margin: 2px 0 0 0; font-size: 10px; color: #475569;">MI Rowosari Kendal</p>
+          <p style="margin: 2px 0 0 0; font-size: 10px; color: #475569;">MI Islamiyah Rowosari</p>
         </div>
       </div>
-
-      <script>
-        window.onload = function() {
-          setTimeout(function() {
-            window.print();
-          }, 400);
-        };
-      </script>
     </body>
     </html>
   `;
 
-  printWindow.document.open();
-  printWindow.document.write(htmlContent);
-  printWindow.document.close();
+  printHtmlDocument(htmlContent);
 }

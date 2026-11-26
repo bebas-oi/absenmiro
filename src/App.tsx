@@ -11,6 +11,7 @@ import { TeachersView } from './components/TeachersView';
 import { UserManagementView } from './components/UserManagementView';
 import { AttendanceReportsView } from './components/AttendanceReportsView';
 import { StudentCardPrintView } from './components/StudentCardPrintView';
+import { AsasAsatView } from './components/AsasAsatView';
 import { SettingsScheduleView } from './components/SettingsScheduleView';
 
 const MainLayout: React.FC = () => {
@@ -47,6 +48,7 @@ const MainLayout: React.FC = () => {
           {activeTab === 'users' && isGuru && <DashboardView />}
           {activeTab === 'reports' && <AttendanceReportsView />}
           {activeTab === 'cards' && <StudentCardPrintView />}
+          {activeTab === 'exam' && <AsasAsatView />}
           {activeTab === 'settings' && !isGuru && <SettingsScheduleView />}
           {activeTab === 'settings' && isGuru && <DashboardView />}
           {activeTab === 'kiosk' && <KioskScanner />}

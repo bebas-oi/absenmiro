@@ -1,4 +1,4 @@
-import { ClassRoom, SchoolSettings, Student, Teacher, AttendanceRecord, AppUser } from '../types';
+import { ClassRoom, SchoolSettings, Student, Teacher, AttendanceRecord, AppUser, ExamInstrumentChecklistItem, ExamInstrumentConfig, ExamMetaConfig, ExamScheduleItem, ExamType } from '../types';
 
 export interface UserAccount extends AppUser {
   password: string;
@@ -9,7 +9,7 @@ export const initialUsers: UserAccount[] = [
     id: 'usr-admin',
     username: 'admin',
     password: 'admin123',
-    name: 'Administrator MI Rowosari',
+    name: 'Administrator MI Islamiyah Rowosari',
     role: 'ADMIN',
     email: 'admin@mirowosari.sch.id',
     phone: '081234567800',
@@ -95,7 +95,7 @@ export const initialUsers: UserAccount[] = [
 ];
 
 export const initialSettings: SchoolSettings = {
-  schoolName: 'MADRASAH IBTIDAIYAH (MI) ROWOSARI',
+  schoolName: 'MI Islamiyah Rowosari',
   subTitle: 'KANTOR KEMENTERIAN AGAMA KABUPATEN KENDAL',
   nsm: '111233240019',
   npsn: '60712345',
@@ -611,3 +611,267 @@ export function getSampleAttendanceRecords(): AttendanceRecord[] {
     },
   ];
 }
+
+export const initialExamConfigs: Record<ExamType, ExamMetaConfig> = {
+  ASAS: {
+    examType: 'ASAS',
+    academicYear: '2026/2027',
+    semester: 'Ganjil (I)',
+    periodLabel: '2 - 7 Desember 2026',
+    committeeChair: 'Ustadz Muhammad Ridwan, M.Pd',
+    committeeChairNip: '198003222005011004',
+    defaultRoom: 'Ruang 01',
+    participantPrefix: 'ASAS-26',
+    cardTheme: 'emerald',
+    backMode: 'schedule',
+  },
+  ASAT: {
+    examType: 'ASAT',
+    academicYear: '2026/2027',
+    semester: 'Genap (II)',
+    periodLabel: '2 - 7 Juni 2027',
+    committeeChair: 'Ustadzah Lailatul Badriyah, S.Pd.I',
+    committeeChairNip: '198704082011012015',
+    defaultRoom: 'Ruang 01',
+    participantPrefix: 'ASAT-27',
+    cardTheme: 'navy',
+    backMode: 'schedule',
+  },
+};
+
+function generateDefaultExamSchedules(): ExamScheduleItem[] {
+  const classesList = [
+    { name: 'Kelas 1A', room: 'Ruang 01', grade: 1, supervisor: 'Ustadzah Siti Fatimah, S.Pd.I' },
+    { name: 'Kelas 1B', room: 'Ruang 02', grade: 1, supervisor: 'Ustadz Ahmad Khoirul Anam, S.Pd' },
+    { name: 'Kelas 2A', room: 'Ruang 03', grade: 2, supervisor: 'Ustadzah Nurul Hidayah, S.Ag' },
+    { name: 'Kelas 3A', room: 'Ruang 04', grade: 3, supervisor: 'Ustadz Muhammad Ridwan, M.Pd' },
+    { name: 'Kelas 4A', room: 'Ruang 05', grade: 4, supervisor: 'Ustadzah Dewi Sartika, S.Pd' },
+    { name: 'Kelas 5A', room: 'Ruang 06', grade: 5, supervisor: 'Ustadz Budi Santoso, S.Pd.I' },
+    { name: 'Kelas 6A', room: 'Ruang 07', grade: 6, supervisor: 'Ustadzah Lailatul Badriyah, S.Pd.I' },
+  ];
+
+  const items: ExamScheduleItem[] = [];
+
+  const asasDays = [
+    { date: '2026-12-02', dayName: 'Rabu', s1: "Al-Qur'an Hadits", s2: 'Bahasa Indonesia' },
+    { date: '2026-12-03', dayName: 'Kamis', s1: 'Akidah Akhlak', s2: 'Matematika' },
+    { date: '2026-12-04', dayName: 'Jumat', s1: 'Fikih', s2: 'Pendidikan Pancasila' },
+    { date: '2026-12-05', dayName: 'Sabtu', s1: 'Bahasa Arab', s2: 'Bahasa Jawa' },
+    { date: '2026-12-07', dayName: 'Senin', s1: 'SKI / Seni Budaya', s2: 'IPAS / PJOK' },
+  ];
+
+  const asatDays = [
+    { date: '2027-06-02', dayName: 'Rabu', s1: "Al-Qur'an Hadits", s2: 'Bahasa Indonesia' },
+    { date: '2027-06-03', dayName: 'Kamis', s1: 'Akidah Akhlak', s2: 'Matematika' },
+    { date: '2027-06-04', dayName: 'Jumat', s1: 'Fikih', s2: 'Pendidikan Pancasila' },
+    { date: '2027-06-05', dayName: 'Sabtu', s1: 'Bahasa Arab', s2: 'Bahasa Inggris' },
+    { date: '2027-06-07', dayName: 'Senin', s1: 'SKI / Seni Budaya', s2: 'IPAS / Bahasa Jawa' },
+  ];
+
+  classesList.forEach((cls, cIdx) => {
+    asasDays.forEach((d, dIdx) => {
+      const s1Name = d.s1 === 'SKI / Seni Budaya' ? (cls.grade >= 3 ? 'Sejarah Kebudayaan Islam' : 'Seni Budaya & Prakarya') : d.s1;
+      const s2Name = d.s2 === 'IPAS / PJOK' ? (cls.grade >= 3 ? 'IPAS' : 'PJOK') : d.s2;
+
+      items.push({
+        id: `ex-asas-${cIdx}-${dIdx}-1`,
+        examType: 'ASAS',
+        className: cls.name,
+        date: d.date,
+        dayName: d.dayName,
+        timeStart: '07:30',
+        timeEnd: '09:00',
+        subject: s1Name,
+        room: cls.room,
+        supervisor: cls.supervisor,
+      });
+
+      items.push({
+        id: `ex-asas-${cIdx}-${dIdx}-2`,
+        examType: 'ASAS',
+        className: cls.name,
+        date: d.date,
+        dayName: d.dayName,
+        timeStart: '09:30',
+        timeEnd: d.dayName === 'Jumat' ? '10:45' : '11:00',
+        subject: s2Name,
+        room: cls.room,
+        supervisor: cls.supervisor,
+      });
+    });
+
+    asatDays.forEach((d, dIdx) => {
+      const s1Name = d.s1 === 'SKI / Seni Budaya' ? (cls.grade >= 3 ? 'Sejarah Kebudayaan Islam' : 'Seni Budaya & Prakarya') : d.s1;
+      const s2Name = d.s2 === 'IPAS / Bahasa Jawa' ? (cls.grade >= 3 ? 'IPAS' : 'Bahasa Jawa') : d.s2;
+
+      items.push({
+        id: `ex-asat-${cIdx}-${dIdx}-1`,
+        examType: 'ASAT',
+        className: cls.name,
+        date: d.date,
+        dayName: d.dayName,
+        timeStart: '07:30',
+        timeEnd: '09:00',
+        subject: s1Name,
+        room: cls.room,
+        supervisor: cls.supervisor,
+      });
+
+      items.push({
+        id: `ex-asat-${cIdx}-${dIdx}-2`,
+        examType: 'ASAT',
+        className: cls.name,
+        date: d.date,
+        dayName: d.dayName,
+        timeStart: '09:30',
+        timeEnd: d.dayName === 'Jumat' ? '10:45' : '11:00',
+        subject: s2Name,
+        room: cls.room,
+        supervisor: cls.supervisor,
+      });
+    });
+  });
+
+  return items;
+}
+
+export const initialExamSchedules: ExamScheduleItem[] = generateDefaultExamSchedules();
+
+const createDefaultChecklist = (examType: ExamType): ExamInstrumentChecklistItem[] => [
+  { id: 'chk-1', no: 1, label: `SK Panitia ${examType}`, subMenuKey: 'sk_panitia', status: 'ada', evidenceNote: 'Ada (Terlampir)', detailNotes: '' },
+  { id: 'chk-2', no: 2, label: 'Kisi-kisi soal', subMenuKey: 'kisi_kisi', status: 'ada', evidenceNote: 'Lengkap semua mapel', detailNotes: '' },
+  { id: 'chk-3', no: 3, label: 'Dokumen Soal', subMenuKey: 'dokumen_soal', status: 'ada', evidenceNote: 'Naskah & Cadangan siap', detailNotes: '' },
+  { id: 'chk-4', no: 4, label: 'Jadwal pelaksanaan', subMenuKey: 'jadwal', status: 'ada', evidenceNote: 'Terpasang di ruang & kartu', detailNotes: '' },
+  { id: 'chk-5', no: 5, label: 'Tata tertib pelaksanaan', subMenuKey: 'tata_tertib', status: 'ada', evidenceNote: 'Tertempel di ruang ujian', detailNotes: '' },
+  { id: 'chk-6', no: 6, label: 'Daftar hadir peserta', subMenuKey: 'daftar_hadir', status: 'ada', evidenceNote: 'Format siap per ruang', detailNotes: '' },
+  { id: 'chk-7', no: 7, label: 'Berita Acara pelaksanaan', subMenuKey: 'berita_acara', status: 'ada', evidenceNote: 'Blangko siap per mapel', detailNotes: '' },
+  { id: 'chk-8', no: 8, label: 'Daftar nilai', subMenuKey: 'daftar_nilai', status: 'ada', evidenceNote: 'Format rekap siap', detailNotes: '' },
+  { id: 'chk-9', no: 9, label: 'Kartu / Nomor peserta', subMenuKey: 'kartu_peserta', status: 'ada', evidenceNote: 'Sudah dibagikan ke siswa', detailNotes: '' },
+  { id: 'chk-10', no: 10, label: 'RAB', subMenuKey: 'rab', status: 'ada', evidenceNote: 'Rencana anggaran disahkan', detailNotes: '' },
+  { id: 'chk-11', no: 11, label: `Tanda waktu / bel pelaksanaan ${examType.toLowerCase()}`, subMenuKey: 'tanda_waktu', status: 'ada', evidenceNote: 'Bel ruang aktif & terjadwal', detailNotes: '' },
+  { id: 'chk-12', no: 12, label: '', subMenuKey: 'custom', status: 'kosong', evidenceNote: '', detailNotes: '' },
+];
+
+export const initialExamInstruments: Record<ExamType, ExamInstrumentConfig> = {
+  ASAS: {
+    examType: 'ASAS',
+    kopLine1: 'KEMENTERIAN AGAMA REPUBLIK INDONESIA',
+    kopLine2: 'KANTOR KEMENTERIAN AGAMA KABUPATEN BATANG',
+    kopLine3: 'KELOMPOK KERJA PENGAWAS (POKJAWAS)',
+    kopAddress: 'Jl. Perintis Kemerdekaan Nomor 14 Batang 51216 Telepon (0285) 391053',
+    kopLogoType: 'kemenag',
+    kopCustomLogoUrl: '',
+    instrumentTitle: 'INSTRUMEN PELAKSANAAN ASAS SEMESTER 1',
+    academicYearLabel: 'TAHUN PELAJARAN 2026/2027',
+    madrasahName: 'MI Islamiyah Rowosari',
+    madrasahAddress: 'Jl. Raya Rowosari No. 12, Kec. Rowosari',
+    autoCountStudents: true,
+    kls1Count: '',
+    kls2Count: '',
+    kls3Count: '',
+    kls4Count: '',
+    kls5Count: '',
+    kls6Count: '',
+    totalStudentsCount: '',
+    defaultMonitoringResult: '',
+    defaultNotes: '',
+    supervisorTitle: 'Pengawas Madrasah RA/MI',
+    supervisorName: 'Sobirin, M.Pd.I',
+    supervisorNip: '197001202002121001',
+    headmasterTitle: 'Kepala Madrasah',
+    headmasterName: 'H. Ahmad Muzakki, M.Pd.I',
+    headmasterNip: '19780512 200501 1 003',
+    paperSize: 'A4',
+    checklist: createDefaultChecklist('ASAS'),
+    subjectOverrides: {},
+    skNumber: '045/MI-RWS/XI/2026',
+    skDate: '2026-11-20',
+    skCommitteeText:
+      'Penanggung Jawab : H. Ahmad Muzakki, M.Pd.I (Kepala Madrasah)\nKetua Panitia    : Ustadz Muhammad Ridwan, M.Pd\nSekretaris       : Ustadzah Siti Fatimah, S.Pd.I\nBendahara        : Ustadzah Dewi Sartika, S.Pd\nSeksi Naskah     : Ustadz Ahmad Khoirul Anam, S.Pd\nSeksi Ruang      : Ustadz Budi Santoso, S.Pd.I',
+    kisiKisiNotes: 'Kisi-kisi disusun oleh guru mapel kelas 1 s.d. 6 mengacu pada Kurikulum Merdeka & KMA terbaru.',
+    dokumenSoalNotes: 'Naskah soal ASAS Semester 1 sudah digandakan sesuai jumlah siswa per ruang plus cadangan 2 eksemplar.',
+    tataTertibItems: [
+      'Peserta wajib hadir di lingkungan madrasah 15 menit sebelum bel masuk berbunyi.',
+      'Peserta menempati tempat duduk sesuai dengan nomor peserta yang tertempel di meja.',
+      'Peserta wajib membawa dan menunjukkan Kartu Peserta ASAS selama ujian berlangsung.',
+      'Dilarang membawa alat komunikasi (HP/Smartwatch), buku catatan, atau kalkulator ke dalam ruang ujian.',
+      'Selama mengerjakan soal, peserta dilarang bekerja sama atau mencontek pekerjaan peserta lain.',
+      'Peserta yang telah selesai mengerjakan sebelum waktu habis harap memeriksa kembali jawaban dengan tenang.',
+    ],
+    beritaAcaraNotes: 'Pelaksanaan ujian berjalan tertib, aman, dan lancar tanpa kendala berarti.',
+    rabItems: [
+      { id: 'rab-1', uraian: 'Penggandaan Naskah Soal & Lembar Jawab', volume: '6', satuan: 'Kelas', hargaSatuan: 250000 },
+      { id: 'rab-2', uraian: 'Cetak Kartu Peserta & Administrasi Ruang', volume: '1', satuan: 'Paket', hargaSatuan: 200000 },
+      { id: 'rab-3', uraian: 'Konsumsi Panitia & Pengawas Ruang (6 Hari)', volume: '6', satuan: 'Hari', hargaSatuan: 150000 },
+      { id: 'rab-4', uraian: 'ATK & Perlengkapan Pelaksanaan', volume: '1', satuan: 'Paket', hargaSatuan: 175000 },
+    ],
+    bellSchedule: [
+      { id: 'bel-1', signal: 'Bel 1x Panjang', timing: '07:15 (15 Menit Sebelum Mulai)', meaning: 'Peserta memasuki ruang ujian & menempati kursi sesuai nomor' },
+      { id: 'bel-2', signal: 'Bel 2x', timing: '07:25 (5 Menit Sebelum Mulai)', meaning: 'Pengawas membacakan tata tertib & membagikan naskah soal' },
+      { id: 'bel-3', signal: 'Bel 1x Panjang', timing: '07:30 (Jam Mulai)', meaning: 'Tanda peserta mulai mengerjakan soal ujian' },
+      { id: 'bel-4', signal: 'Bel 1x Pendek', timing: '10 Menit Sebelum Selesai', meaning: 'Peringatan sisa waktu pengerjaan tinggal 10 menit' },
+      { id: 'bel-5', signal: 'Bel 3x Panjang', timing: '09:00 / Jam Selesai', meaning: 'Waktu ujian berakhir, lembar jawab dikumpulkan ke pengawas' },
+    ],
+  },
+  ASAT: {
+    examType: 'ASAT',
+    kopLine1: 'KEMENTERIAN AGAMA REPUBLIK INDONESIA',
+    kopLine2: 'KANTOR KEMENTERIAN AGAMA KABUPATEN BATANG',
+    kopLine3: 'KELOMPOK KERJA PENGAWAS (POKJAWAS)',
+    kopAddress: 'Jl. Perintis Kemerdekaan Nomor 14 Batang 51216 Telepon (0285) 391053',
+    kopLogoType: 'kemenag',
+    kopCustomLogoUrl: '',
+    instrumentTitle: 'INSTRUMEN PELAKSANAAN ASAT SEMESTER 2',
+    academicYearLabel: 'TAHUN PELAJARAN 2026/2027',
+    madrasahName: 'MI Islamiyah Rowosari',
+    madrasahAddress: 'Jl. Raya Rowosari No. 12, Kec. Rowosari',
+    autoCountStudents: true,
+    kls1Count: '',
+    kls2Count: '',
+    kls3Count: '',
+    kls4Count: '',
+    kls5Count: '',
+    kls6Count: '',
+    totalStudentsCount: '',
+    defaultMonitoringResult: '',
+    defaultNotes: '',
+    supervisorTitle: 'Pengawas Madrasah RA/MI',
+    supervisorName: 'Sobirin, M.Pd.I',
+    supervisorNip: '197001202002121001',
+    headmasterTitle: 'Kepala Madrasah',
+    headmasterName: 'H. Ahmad Muzakki, M.Pd.I',
+    headmasterNip: '19780512 200501 1 003',
+    paperSize: 'A4',
+    checklist: createDefaultChecklist('ASAT'),
+    subjectOverrides: {},
+    skNumber: '089/MI-RWS/V/2027',
+    skDate: '2027-05-20',
+    skCommitteeText:
+      'Penanggung Jawab : H. Ahmad Muzakki, M.Pd.I (Kepala Madrasah)\nKetua Panitia    : Ustadzah Lailatul Badriyah, S.Pd.I\nSekretaris       : Ustadzah Nurul Hidayah, S.Ag\nBendahara        : Ustadzah Dewi Sartika, S.Pd\nSeksi Naskah     : Ustadz Ahmad Khoirul Anam, S.Pd\nSeksi Ruang      : Ustadz Budi Santoso, S.Pd.I',
+    kisiKisiNotes: 'Kisi-kisi ASAT Semester Genap disusun sesuai capaian pembelajaran semester 2.',
+    dokumenSoalNotes: 'Naskah soal ASAT Semester 2 siap didistribusikan ke tiap ruang ujian.',
+    tataTertibItems: [
+      'Peserta wajib hadir di lingkungan madrasah 15 menit sebelum bel masuk berbunyi.',
+      'Peserta menempati tempat duduk sesuai dengan nomor peserta yang tertempel di meja.',
+      'Peserta wajib membawa dan menunjukkan Kartu Peserta ASAT selama ujian berlangsung.',
+      'Dilarang membawa alat komunikasi (HP/Smartwatch) atau catatan ke dalam ruang ujian.',
+      'Selama mengerjakan soal, peserta dilarang bekerja sama atau mencontek pekerjaan peserta lain.',
+      'Peserta yang telah selesai mengerjakan sebelum waktu habis harap memeriksa kembali jawaban dengan tenang.',
+    ],
+    beritaAcaraNotes: 'Pelaksanaan ASAT berjalan tertib, aman, dan lancar.',
+    rabItems: [
+      { id: 'rab-asat-1', uraian: 'Penggandaan Naskah Soal & Lembar Jawab ASAT', volume: '6', satuan: 'Kelas', hargaSatuan: 250000 },
+      { id: 'rab-asat-2', uraian: 'Cetak Kartu Peserta & Administrasi Ruang', volume: '1', satuan: 'Paket', hargaSatuan: 200000 },
+      { id: 'rab-asat-3', uraian: 'Konsumsi Panitia & Pengawas Ruang (6 Hari)', volume: '6', satuan: 'Hari', hargaSatuan: 150000 },
+    ],
+    bellSchedule: [
+      { id: 'bel-asat-1', signal: 'Bel 1x Panjang', timing: '07:15 (15 Menit Sebelum Mulai)', meaning: 'Peserta memasuki ruang ujian & menempati kursi sesuai nomor' },
+      { id: 'bel-asat-2', signal: 'Bel 2x', timing: '07:25 (5 Menit Sebelum Mulai)', meaning: 'Pengawas membacakan tata tertib & membagikan naskah soal' },
+      { id: 'bel-asat-3', signal: 'Bel 1x Panjang', timing: '07:30 (Jam Mulai)', meaning: 'Tanda peserta mulai mengerjakan soal ujian' },
+      { id: 'bel-asat-4', signal: 'Bel 1x Pendek', timing: '10 Menit Sebelum Selesai', meaning: 'Peringatan sisa waktu pengerjaan tinggal 10 menit' },
+      { id: 'bel-asat-5', signal: 'Bel 3x Panjang', timing: '09:00 / Jam Selesai', meaning: 'Waktu ujian berakhir, lembar jawab dikumpulkan ke pengawas' },
+    ],
+  },
+};
+
+

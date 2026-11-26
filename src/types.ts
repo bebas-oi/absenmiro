@@ -139,6 +139,132 @@ export interface ImportPreviewResult {
   duplicateCount: number;
 }
 
+export type ExamType = 'ASAS' | 'ASAT';
+
+export interface ExamScheduleItem {
+  id: string;
+  examType: ExamType;
+  className: string;
+  date: string; // YYYY-MM-DD
+  dayName: string; // e.g. 'Senin'
+  timeStart: string; // e.g. '07:30'
+  timeEnd: string; // e.g. '09:00'
+  subject: string;
+  room?: string;
+  supervisor?: string;
+}
+
+export interface ExamMetaConfig {
+  examType: ExamType;
+  academicYear: string;
+  semester: string;
+  periodLabel: string;
+  committeeChair: string;
+  committeeChairNip?: string;
+  defaultRoom: string;
+  participantPrefix: string;
+  cardTheme: 'emerald' | 'navy' | 'gold' | 'modern';
+  backMode: 'schedule' | 'rules';
+}
+
+export type ExamChecklistStatus = 'ada' | 'tidak_ada' | 'kosong';
+
+export type ExamSubMenuKey =
+  | 'sk_panitia'
+  | 'kisi_kisi'
+  | 'dokumen_soal'
+  | 'jadwal'
+  | 'tata_tertib'
+  | 'daftar_hadir'
+  | 'berita_acara'
+  | 'daftar_nilai'
+  | 'kartu_peserta'
+  | 'rab'
+  | 'tanda_waktu'
+  | 'custom';
+
+export interface ExamInstrumentChecklistItem {
+  id: string;
+  no: number;
+  label: string;
+  subMenuKey: ExamSubMenuKey;
+  status: ExamChecklistStatus;
+  evidenceNote: string;
+  detailNotes?: string;
+  detailLink?: string;
+}
+
+export interface ExamRabItem {
+  id: string;
+  uraian: string;
+  volume: string;
+  satuan: string;
+  hargaSatuan: number;
+}
+
+export interface ExamBellItem {
+  id: string;
+  signal: string;
+  timing: string;
+  meaning: string;
+}
+
+export interface ExamSubjectInstrumentOverride {
+  subject: string;
+  dayDateLabel?: string;
+  monitoringResult?: string;
+  notes?: string;
+  checklistOverrides?: Record<
+    string,
+    {
+      status: ExamChecklistStatus;
+      evidenceNote: string;
+    }
+  >;
+}
+
+export interface ExamInstrumentConfig {
+  examType: ExamType;
+  kopLine1: string;
+  kopLine2: string;
+  kopLine3: string;
+  kopAddress: string;
+  kopLogoType: 'kemenag' | 'mi' | 'custom' | 'none';
+  kopCustomLogoUrl?: string;
+  instrumentTitle: string;
+  academicYearLabel: string;
+  madrasahName: string;
+  madrasahAddress: string;
+  autoCountStudents: boolean;
+  kls1Count: string;
+  kls2Count: string;
+  kls3Count: string;
+  kls4Count: string;
+  kls5Count: string;
+  kls6Count: string;
+  totalStudentsCount: string;
+  defaultMonitoringResult: string;
+  defaultNotes: string;
+  supervisorTitle: string;
+  supervisorName: string;
+  supervisorNip: string;
+  headmasterTitle: string;
+  headmasterName: string;
+  headmasterNip: string;
+  paperSize: 'A4' | 'F4';
+  checklist: ExamInstrumentChecklistItem[];
+  subjectOverrides: Record<string, ExamSubjectInstrumentOverride>;
+  skNumber: string;
+  skDate: string;
+  skCommitteeText: string;
+  kisiKisiNotes: string;
+  dokumenSoalNotes: string;
+  tataTertibItems: string[];
+  beritaAcaraNotes: string;
+  rabItems: ExamRabItem[];
+  bellSchedule: ExamBellItem[];
+}
+
 export type ActiveTab = 
   | 'kiosk'
   | 'dashboard'
@@ -147,5 +273,7 @@ export type ActiveTab =
   | 'users'
   | 'reports'
   | 'cards'
+  | 'exam'
   | 'settings';
+
 

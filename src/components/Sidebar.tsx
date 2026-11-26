@@ -13,6 +13,7 @@ import {
   LogOut,
   AlertTriangle,
   Scan,
+  FileCheck2,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { ActiveTab } from '../types';
@@ -66,6 +67,12 @@ export const Sidebar: React.FC = () => {
           subLabel: 'ID Card RFID Kelas',
           icon: CreditCard,
         },
+        {
+          id: 'exam',
+          label: 'ASAS & ASAT',
+          subLabel: 'Jadwal & Kartu Ujian',
+          icon: FileCheck2,
+        },
       ]
     : [
         {
@@ -103,6 +110,12 @@ export const Sidebar: React.FC = () => {
           label: 'Cetak Kartu Siswa',
           subLabel: 'Desain & ID Card RFID',
           icon: CreditCard,
+        },
+        {
+          id: 'exam',
+          label: 'ASAS & ASAT',
+          subLabel: 'Jadwal & Cetak Kartu Ujian',
+          icon: FileCheck2,
         },
         {
           id: 'settings',
@@ -152,7 +165,7 @@ export const Sidebar: React.FC = () => {
               MI
             </div>
             <div>
-              <div className="font-black text-sm text-white tracking-wider uppercase">MI ROWOSARI</div>
+              <div className="font-black text-sm text-white tracking-wider uppercase">MI ISLAMIYAH ROWOSARI</div>
               <div className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">
                 {isGuru ? `Wali ${currentUser?.assignedClass}` : 'Admin Panel'}
               </div>
@@ -177,7 +190,7 @@ export const Sidebar: React.FC = () => {
                 ) : (
                   <ShieldCheck className="w-4 h-4 text-emerald-400" />
                 )}
-                <span>{isGuru ? currentUser?.assignedClass : 'MI Rowosari'}</span>
+                <span>{isGuru ? currentUser?.assignedClass : 'MI Islamiyah Rowosari'}</span>
               </span>
               <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-black uppercase tracking-wider">
                 {isGuru ? 'GURU' : 'ADMIN'}

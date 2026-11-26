@@ -92,7 +92,7 @@ export const DashboardView: React.FC = () => {
           <h2 className="text-2xl sm:text-3xl font-black tracking-tight leading-tight uppercase">
             {isGuru
               ? `Dashboard Presensi ${currentUser?.assignedClass}`
-              : 'Dashboard Presensi Siswa MI Rowosari'}
+              : 'Dashboard Presensi Siswa MI Islamiyah Rowosari'}
           </h2>
           <p className="text-sm text-slate-300 mt-2 leading-relaxed font-medium">
             {isGuru

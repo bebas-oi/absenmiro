@@ -16,6 +16,10 @@ import { db } from '../lib/firebase';
 import {
   AttendanceRecord,
   ClassRoom,
+  ExamInstrumentConfig,
+  ExamMetaConfig,
+  ExamScheduleItem,
+  ExamType,
   SchoolSettings,
   Student,
   Teacher,
@@ -29,6 +33,9 @@ const TEACHERS_COLLECTION = 'teachers';
 const USERS_COLLECTION = 'users';
 const STUDENTS_COLLECTION = 'students';
 const ATTENDANCE_COLLECTION = 'attendance';
+const EXAM_SCHEDULES_COLLECTION = 'exam_schedules';
+const EXAM_CONFIGS_COLLECTION = 'exam_configs';
+const EXAM_INSTRUMENTS_COLLECTION = 'exam_instruments';
 
 // ==========================================
 // SETTINGS
@@ -276,6 +283,117 @@ export async function deleteCloudAttendance(id: string): Promise<void> {
     await deleteDoc(docRef);
   } catch (err) {
     console.error('[Firestore] Error deleting attendance record:', err);
+  }
+}
+
+// ==========================================
+// EXAM SCHEDULES & CONFIGS (ASAS / ASAT)
+// ==========================================
+export function subscribeCloudExamSchedules(
+  callback: (items: ExamScheduleItem[]) => void,
+  onError?: (err: Error) => void
+): Unsubscribe {
+  const colRef = collection(db, EXAM_SCHEDULES_COLLECTION);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const items: ExamScheduleItem[] = [];
+      snapshot.forEach((d) => {
+        items.push({ id: d.id, ...(d.data() as Omit<ExamScheduleItem, 'id'>) });
+      });
+      callback(items);
+    },
+    (err) => {
+      console.warn('[Firestore] Exam schedules subscription error:', err);
+      onError?.(err);
+    }
+  );
+}
+
+export async function saveCloudExamSchedule(item: ExamScheduleItem): Promise<void> {
+  try {
+    const docRef = doc(db, EXAM_SCHEDULES_COLLECTION, item.id);
+    await setDoc(docRef, item, { merge: true });
+  } catch (err) {
+    console.error('[Firestore] Error saving exam schedule:', err);
+  }
+}
+
+export async function batchSaveCloudExamSchedules(items: ExamScheduleItem[]): Promise<void> {
+  try {
+    const batch = writeBatch(db);
+    items.forEach((item) => {
+      batch.set(doc(db, EXAM_SCHEDULES_COLLECTION, item.id), item, { merge: true });
+    });
+    await batch.commit();
+  } catch (err) {
+    console.error('[Firestore] Error batch saving exam schedules:', err);
+  }
+}
+
+export async function deleteCloudExamSchedule(id: string): Promise<void> {
+  try {
+    const docRef = doc(db, EXAM_SCHEDULES_COLLECTION, id);
+    await deleteDoc(docRef);
+  } catch (err) {
+    console.error('[Firestore] Error deleting exam schedule:', err);
+  }
+}
+
+export async function fetchCloudExamConfigs(): Promise<Partial<Record<ExamType, ExamMetaConfig>> | null> {
+  try {
+    const snap = await getDocs(collection(db, EXAM_CONFIGS_COLLECTION));
+    if (snap.empty) return null;
+    const result: Partial<Record<ExamType, ExamMetaConfig>> = {};
+    snap.forEach((d) => {
+      const data = d.data() as ExamMetaConfig;
+      if (data.examType) {
+        result[data.examType] = data;
+      }
+    });
+    return result;
+  } catch (err) {
+    console.warn('[Firestore] Failed to fetch exam configs:', err);
+    return null;
+  }
+}
+
+export async function saveCloudExamConfig(examType: ExamType, config: ExamMetaConfig): Promise<void> {
+  try {
+    const docRef = doc(db, EXAM_CONFIGS_COLLECTION, examType);
+    await setDoc(docRef, config, { merge: true });
+  } catch (err) {
+    console.error('[Firestore] Error saving exam config:', err);
+  }
+}
+
+export async function fetchCloudExamInstruments(): Promise<Partial<Record<ExamType, ExamInstrumentConfig>> | null> {
+  try {
+    const snap = await getDocs(collection(db, EXAM_INSTRUMENTS_COLLECTION));
+    if (snap.empty) return null;
+    const result: Partial<Record<ExamType, ExamInstrumentConfig>> = {};
+    snap.forEach((d) => {
+      const data = d.data() as ExamInstrumentConfig;
+      if (data.examType) {
+        result[data.examType] = data;
+      }
+    });
+    return result;
+  } catch (err) {
+    console.warn('[Firestore] Failed to fetch exam instruments:', err);
+    return null;
+  }
+}
+
+export async function saveCloudExamInstrument(
+  examType: ExamType,
+  instrument: ExamInstrumentConfig
+): Promise<void> {
+  try {
+    const docRef = doc(db, EXAM_INSTRUMENTS_COLLECTION, examType);
+    await setDoc(docRef, instrument, { merge: true });
+  } catch (err) {
+    console.error('[Firestore] Error saving exam instrument:', err);
   }
 }
 

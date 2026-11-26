@@ -30,5 +30,20 @@ service cloud.firestore {
     match /attendance/{attendanceId} {
       allow read, write: if true;
     }
+
+    // ASAS & ASAT exam schedules
+    match /exam_schedules/{scheduleId} {
+      allow read, write: if true;
+    }
+
+    // ASAS & ASAT exam configurations
+    match /exam_configs/{examType} {
+      allow read, write: if true;
+    }
+
+    // ASAS & ASAT supervision instruments
+    match /exam_instruments/{examType} {
+      allow read, write: if true;
+    }
   }
 }

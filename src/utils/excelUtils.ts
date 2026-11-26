@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { ImportPreviewResult, ImportValidationError, SchoolSettings, Student } from '../types';
+import { convertGoogleDriveUrl } from './googleDriveUtils';
 
 /**
  * Downloads a standardized Excel template for student data import
@@ -12,6 +13,7 @@ export function downloadStudentExcelTemplate() {
       RFID: 'E2809901',
       KELAS: 'Kelas 1A',
       'JENIS KELAMIN': 'L',
+      'LINK FOTO / GOOGLE DRIVE': 'https://drive.google.com/file/d/1ExamplePhotoId1/view?usp=sharing',
     },
     {
       NIS: '20260192',
@@ -19,6 +21,7 @@ export function downloadStudentExcelTemplate() {
       RFID: 'E2809902',
       KELAS: 'Kelas 1A',
       'JENIS KELAMIN': 'P',
+      'LINK FOTO / GOOGLE DRIVE': '',
     },
     {
       NIS: '20260193',
@@ -26,6 +29,7 @@ export function downloadStudentExcelTemplate() {
       RFID: 'E2809903',
       KELAS: 'Kelas 1B',
       'JENIS KELAMIN': 'L',
+      'LINK FOTO / GOOGLE DRIVE': '',
     },
   ];
 
@@ -38,6 +42,7 @@ export function downloadStudentExcelTemplate() {
     { wch: 16 }, // RFID
     { wch: 14 }, // KELAS
     { wch: 16 }, // JENIS KELAMIN
+    { wch: 40 }, // LINK FOTO / GOOGLE DRIVE
   ];
 
   const wb = XLSX.utils.book_new();
@@ -119,6 +124,7 @@ export async function parseAndValidateStudentExcel(
           const rawRfid = getVal(['rfid', 'rfid uid', 'uid', 'no rfid', 'kartu rfid']);
           const rawKelas = getVal(['kelas', 'class', 'rombel']);
           const rawGender = getVal(['jenis kelamin', 'jk', 'gender', 'l/p']);
+          const rawPhoto = getVal(['link foto', 'foto', 'google drive', 'drive', 'foto url', 'photo', 'photo url']);
 
           // 1. Check required NIS
           if (!rawNis) {
@@ -254,6 +260,10 @@ export async function parseAndValidateStudentExcel(
           seenRfidInFile.add(cleanRfidUpper);
 
           // All good -> push to valid rows
+          const finalPhoto = rawPhoto
+            ? convertGoogleDriveUrl(rawPhoto)
+            : `https://api.dicebear.com/7.x/bottts/svg?seed=${rawNis}`;
+
           validRows.push({
             nis: rawNis,
             name: rawName,
@@ -263,7 +273,7 @@ export async function parseAndValidateStudentExcel(
             parentName: getVal(['nama orang tua', 'wali', 'orang tua']) || `Wali dari ${rawName}`,
             parentPhone: getVal(['no hp', 'telepon', 'whatsapp', 'no telepon']) || '081234567890',
             address: getVal(['alamat', 'desa', 'kelurahan']) || 'Rowosari, Kendal',
-            photoUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${rawNis}`,
+            photoUrl: finalPhoto,
             status: 'aktif',
           });
         });

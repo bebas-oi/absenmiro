@@ -13,6 +13,11 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { CardPrintSettings, Student } from '../types';
+import { getAvatarFallback, getStudentPhotoSrc } from '../utils/googleDriveUtils';
+import { printHtmlDocument } from '../utils/printUtils';
+import { showWarningToast } from '../utils/alerts';
+
+const MI_LOGO_PATH = '/assets/aistudio/Logo_MI_Rowosari_2_b88f498f.png';
 
 export const StudentCardPrintView: React.FC = () => {
   const {
@@ -95,15 +100,12 @@ export const StudentCardPrintView: React.FC = () => {
           );
 
     if (studentsToPrint.length === 0) {
-      alert('Tidak ada siswa yang dipilih untuk dicetak.');
+      showWarningToast('Tidak ada siswa yang dipilih untuk dicetak.');
       return;
     }
 
-    const printWin = window.open('', '_blank');
-    if (!printWin) {
-      alert('Harap izinkan popup browser untuk mencetak kartu.');
-      return;
-    }
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const logoUrl = `${origin}${MI_LOGO_PATH}`;
 
     const cardsHtml = studentsToPrint
       .map(
@@ -112,22 +114,20 @@ export const StudentCardPrintView: React.FC = () => {
         <!-- TAMPAK DEPAN -->
         <div class="id-card front ${cardConfig.template}">
           <div class="card-header">
-            <div class="logo">
-              <svg viewBox="0 0 100 100" width="34" height="34">
-                <polygon points="50,5 90,25 90,75 50,95 10,75 10,25" stroke="#fff" stroke-width="5" fill="#10b981"/>
-                <text x="50" y="58" font-size="20" font-weight="bold" fill="white" text-anchor="middle" font-family="Arial">MI</text>
-              </svg>
+            <div class="logo" style="width:32px;height:32px;border-radius:6px;background:#ffffff;padding:2px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <img src="${logoUrl}" alt="Logo ${settings.schoolName}" style="width:100%;height:100%;object-fit:contain;" />
             </div>
             <div class="header-titles">
-              <h5>${settings.subTitle}</h5>
-              <h4>${settings.schoolName}</h4>
-              <p>KARTU IDENTITAS & PRESENSI RFID SISWA</p>
+              <h5>LEMBAGA PENDIDIKAN MA’ARIF NU</h5>
+              <h4>“MI ISLAMIYAH ROWOSARI”</h4>
+              <p style="font-size:4.5px;color:#e2e8f0;font-weight:700;letter-spacing:0.2px;">BADAN HUKUM PERKUMPULAN NAHDLATUL ULAMA</p>
+              <p style="margin-top:1px;">KARTU IDENTITAS & PRESENSI RFID SISWA</p>
             </div>
           </div>
 
           <div class="card-body">
             <div class="photo-box">
-              <img src="${s.photoUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${s.nis}`}" alt="${s.name}" />
+              <img src="${getStudentPhotoSrc(s.photoUrl, s.nis)}" onerror="this.src='${getAvatarFallback(s.nis)}'" alt="${s.name}" />
               ${cardConfig.showChip ? '<div class="rfid-chip">RFID</div>' : ''}
             </div>
 
@@ -161,19 +161,19 @@ export const StudentCardPrintView: React.FC = () => {
           </div>
           <div class="back-body">
             <ol>
-              <li>Kartu ini adalah identitas resmi siswa MI Rowosari Kendal.</li>
+              <li>Kartu ini adalah identitas resmi siswa MI Islamiyah Rowosari.</li>
               <li>Wajib dibawa setiap hari dan digunakan untuk tap presensi RFID pada gerbang masuk dan pulang.</li>
               <li>Dilarang mencoret, merusak chip RFID, atau meminjamkan kartu kepada orang lain.</li>
-              <li>Jika kartu hilang/rusak, segera laporkan ke bagian Tata Usaha MI Rowosari.</li>
+              <li>Jika kartu hilang/rusak, segera laporkan ke bagian Tata Usaha MI Islamiyah Rowosari.</li>
             </ol>
             <div class="contact-info">
-              <p><strong>Alamat:</strong> ${settings.address}</p>
-              <p><strong>NPSN:</strong> ${settings.npsn} | <strong>NSM:</strong> ${settings.nsm}</p>
-              <p><strong>Berlaku:</strong> ${cardConfig.validUntil}</p>
+              <p><strong>Alamat:</strong> Jl. Masjid Adiloko, No.03, Rt.04/Rw.04, Rowosari, Limpung, Batang</p>
+              <p><strong>Status:</strong> Terakreditasi B | <strong>NSM:</strong> 111233250075 | <strong>NPSN:</strong> 60713227</p>
+              <p><strong>Email:</strong> miirowosari@yahoo.co.id / miirowosari@gmail.com | <strong>Berlaku:</strong> ${cardConfig.validUntil}</p>
             </div>
           </div>
           <div class="back-footer">
-            <span>SMART CARD RFID MI ROWOSARI • INDONESIA</span>
+            <span>SMART CARD RFID MI ISLAMIYAH ROWOSARI • INDONESIA</span>
           </div>
         </div>
       </div>
@@ -185,11 +185,17 @@ export const StudentCardPrintView: React.FC = () => {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Cetak Kartu Siswa RFID - MI Rowosari</title>
+        <base href="${origin}/" />
+        <title>Cetak Kartu Siswa RFID - ${settings.schoolName || 'MI Islamiyah Rowosari'}</title>
         <style>
           @page {
             size: A4;
             margin: 10mm;
+          }
+          *, *::before, *::after {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
           }
           body {
             font-family: Arial, Helvetica, sans-serif;
@@ -378,18 +384,11 @@ export const StudentCardPrintView: React.FC = () => {
         <div class="grid-container">
           ${cardsHtml}
         </div>
-        <script>
-          window.onload = function() {
-            setTimeout(function() { window.print(); }, 400);
-          };
-        </script>
       </body>
       </html>
     `;
 
-    printWin.document.open();
-    printWin.document.write(fullHtml);
-    printWin.document.close();
+    printHtmlDocument(fullHtml);
   };
 
   return (
@@ -405,7 +404,7 @@ export const StudentCardPrintView: React.FC = () => {
             {isGuru ? `Cetak Kartu Siswa ${currentUser?.assignedClass}` : 'Studio Cetak Kartu Siswa RFID'}
           </h2>
           <p className="text-xs text-slate-500 mt-0.5 font-medium">
-            Desain resmi Kartu Pelajar & Presensi RFID MI Rowosari dengan chip sensor dan barcode NIS
+            Desain resmi Kartu Pelajar & Presensi RFID MI Islamiyah Rowosari dengan chip sensor dan barcode NIS
           </p>
         </div>
 
@@ -553,15 +552,22 @@ export const StudentCardPrintView: React.FC = () => {
                 <div
                   className={`p-2 bg-gradient-to-r ${theme.bgHeader} text-white flex items-center space-x-2`}
                 >
-                  <div className="w-6 h-6 rounded-lg bg-emerald-500 text-white flex items-center justify-center font-black text-[9px]">
-                    MI
+                  <div className="w-7 h-7 rounded-lg bg-white p-0.5 flex items-center justify-center shrink-0">
+                    <img
+                      src={MI_LOGO_PATH}
+                      alt="Logo MI Islamiyah Rowosari"
+                      className="w-full h-full object-contain"
+                    />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-[7px] text-emerald-200 font-bold uppercase truncate">
-                      {settings.subTitle}
+                    <div className="text-[6.5px] text-emerald-200 font-bold uppercase truncate">
+                      LEMBAGA PENDIDIKAN MA’ARIF NU
                     </div>
                     <div className="font-black text-[9px] uppercase truncate">
-                      {settings.schoolName}
+                      “MI ISLAMIYAH ROWOSARI”
+                    </div>
+                    <div className="text-[6px] text-white/80 font-bold uppercase truncate">
+                      BADAN HUKUM PERKUMPULAN NAHDLATUL ULAMA
                     </div>
                   </div>
                 </div>
@@ -570,10 +576,10 @@ export const StudentCardPrintView: React.FC = () => {
                 <div className="p-2.5 flex items-center space-x-3 flex-1">
                   <div className="w-14 h-18 rounded-lg bg-slate-100 border border-emerald-600 overflow-hidden shrink-0 relative">
                     <img
-                      src={
-                        selectedStudent.photoUrl ||
-                        `https://api.dicebear.com/7.x/bottts/svg?seed=${selectedStudent.nis}`
-                      }
+                      src={getStudentPhotoSrc(selectedStudent.photoUrl, selectedStudent.nis)}
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = getAvatarFallback(selectedStudent.nis);
+                      }}
                       alt={selectedStudent.name}
                       className="w-full h-full object-cover"
                     />
@@ -611,12 +617,12 @@ export const StudentCardPrintView: React.FC = () => {
                   Tata Tertib Penggunaan Kartu
                 </div>
                 <ol className="list-decimal pl-4 space-y-0.5 text-[7.5px] text-slate-600 font-medium">
-                  <li>Kartu ini adalah identitas resmi MI Rowosari.</li>
+                  <li>Kartu ini adalah identitas resmi MI Islamiyah Rowosari.</li>
                   <li>Wajib dibawa setiap hari untuk tap presensi RFID.</li>
                   <li>Dilarang merusak atau meminjamkan kartu.</li>
                 </ol>
                 <div className="text-[7px] text-slate-400 text-center border-t border-slate-200 pt-1 font-bold">
-                  SMART CARD RFID MI ROWOSARI
+                  SMART CARD RFID MI ISLAMIYAH ROWOSARI
                 </div>
               </div>
             </div>

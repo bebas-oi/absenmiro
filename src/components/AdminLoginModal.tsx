@@ -93,7 +93,7 @@ export const AdminLoginModal: React.FC = () => {
             </div>
           </div>
           <p className="text-xs text-emerald-100/90 font-medium">
-            MI Rowosari — Akses dashboard administrasi & wali kelas
+            MI Islamiyah Rowosari — Akses dashboard administrasi & wali kelas
           </p>
         </div>
 

@@ -15,10 +15,12 @@ import { useApp } from '../context/AppContext';
 import { ManualAttendanceModal } from './ManualAttendanceModal';
 import { ManualPinModal } from './ManualPinModal';
 import { AdminLoginModal } from './AdminLoginModal';
+import { getAvatarFallback, getStudentPhotoSrc } from '../utils/googleDriveUtils';
 
 export const LandingPage: React.FC = () => {
   const {
     settings,
+    students,
     attendance,
     currentDateString,
     currentTimeString,
@@ -121,10 +123,10 @@ export const LandingPage: React.FC = () => {
             </div>
             <div>
               <h1 className="text-base sm:text-lg font-black text-slate-900 leading-tight uppercase tracking-tight">
-                MI ROWOSARI
+                {settings.schoolName || 'MI ISLAMIYAH ROWOSARI'}
               </h1>
               <p className="text-[11px] sm:text-xs font-bold text-emerald-700 leading-tight uppercase">
-                {settings.schoolName}
+                MADRASAH IBTIDAIYAH ISLAMIYAH ROWOSARI
               </p>
             </div>
           </div>
@@ -171,10 +173,10 @@ export const LandingPage: React.FC = () => {
 
                   <div>
                     <h2 className="text-xl sm:text-2xl font-black text-slate-900 uppercase tracking-tight">
-                      MI ROWOSARI
+                      {settings.schoolName || 'MI ISLAMIYAH ROWOSARI'}
                     </h2>
                     <p className="text-xs sm:text-sm font-black text-emerald-700 uppercase tracking-wide">
-                      MADRASAH IBTIDAIYAH (MI) ROWOSARI
+                      MADRASAH IBTIDAIYAH ISLAMIYAH ROWOSARI
                     </p>
                   </div>
                 </div>
@@ -255,10 +257,10 @@ export const LandingPage: React.FC = () => {
                     {/* Foto Siswa */}
                     <div className="relative inline-block">
                       <img
-                        src={
-                          currentScanResult.student.photoUrl ||
-                          `https://api.dicebear.com/7.x/bottts/svg?seed=${currentScanResult.student.nis}`
-                        }
+                        src={getStudentPhotoSrc(currentScanResult.student.photoUrl, currentScanResult.student.nis)}
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = getAvatarFallback(currentScanResult.student!.nis);
+                        }}
                         alt={currentScanResult.student.name}
                         className={`w-24 h-24 sm:w-32 sm:h-32 rounded-full object-cover mx-auto border-4 shadow-lg bg-white ${
                           currentScanResult.status === 'TERLAMBAT'
@@ -417,7 +419,11 @@ export const LandingPage: React.FC = () => {
                     </p>
                   </div>
                 ) : (
-                  todayRecords.map((rec, idx) => (
+                  todayRecords.map((rec, idx) => {
+                    const matchedStudent = students.find(
+                      (s) => s.id === rec.studentId || s.nis === rec.nis
+                    );
+                    return (
                     <div
                       key={rec.id}
                       className={`pt-2 first:pt-0 p-2.5 rounded-2xl transition-all flex items-center space-x-3 ${
@@ -428,7 +434,10 @@ export const LandingPage: React.FC = () => {
                     >
                       {/* Foto Siswa */}
                       <img
-                        src={`https://api.dicebear.com/7.x/bottts/svg?seed=${rec.nis}`}
+                        src={getStudentPhotoSrc(matchedStudent?.photoUrl, rec.nis)}
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = getAvatarFallback(rec.nis);
+                        }}
                         alt={rec.studentName}
                         className="w-10 h-10 rounded-full object-cover bg-white border border-slate-200 shrink-0"
                       />
@@ -458,7 +467,8 @@ export const LandingPage: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>

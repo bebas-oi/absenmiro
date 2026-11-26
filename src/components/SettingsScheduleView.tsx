@@ -60,7 +60,7 @@ export const SettingsScheduleView: React.FC = () => {
   const handleReset = async () => {
     const confirmed = await showConfirmDialog(
       'Reset Semua Data?',
-      'Semua data siswa, kelas, guru, dan presensi akan dikembalikan ke data default MI Rowosari. Apakah Anda yakin?'
+      'Semua data siswa, kelas, guru, dan presensi akan dikembalikan ke data default MI Islamiyah Rowosari. Apakah Anda yakin?'
     );
     if (confirmed) {
       resetAllData();
@@ -78,7 +78,7 @@ export const SettingsScheduleView: React.FC = () => {
             <span>Pengaturan Jam Operasional & Profil Madrasah</span>
           </h2>
           <p className="text-xs text-slate-500 mt-0.5 font-medium">
-            Konfigurasi jam masuk, batas toleransi terlambat, jam pulang, dan identitas resmi MI Rowosari
+            Konfigurasi jam masuk, batas toleransi terlambat, jam pulang, dan identitas resmi MI Islamiyah Rowosari
           </p>
         </div>
 

@@ -105,7 +105,7 @@ export const TeachersView: React.FC = () => {
         <div>
           <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center space-x-2 uppercase">
             <GraduationCap className="w-6 h-6 text-emerald-600" />
-            <span>Data Dewan Guru & Wali Kelas MI Rowosari</span>
+            <span>Data Dewan Guru & Wali Kelas MI Islamiyah Rowosari</span>
           </h2>
           <p className="text-xs text-slate-500 mt-0.5 font-medium">
             Manajemen data wali kelas untuk pendampingan kehadiran dan komunikasi orang tua

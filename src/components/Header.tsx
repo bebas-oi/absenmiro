@@ -42,7 +42,7 @@ export const Header: React.FC = () => {
             <div>
               <div className="flex items-center space-x-2">
                 <h1 className="font-black text-sm sm:text-base text-slate-900 tracking-tight leading-none uppercase">
-                  MI ROWOSARI
+                  MI ISLAMIYAH ROWOSARI
                 </h1>
                 <span
                   className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${

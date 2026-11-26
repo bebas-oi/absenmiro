@@ -7,6 +7,10 @@ import {
   AttendanceStatus,
   AttendanceType,
   ClassRoom,
+  ExamInstrumentConfig,
+  ExamMetaConfig,
+  ExamScheduleItem,
+  ExamType,
   ScanResultState,
   SchoolSettings,
   Student,
@@ -16,6 +20,9 @@ import {
   getSampleAttendanceRecords,
   getTodayDateString,
   initialClasses,
+  initialExamConfigs,
+  initialExamInstruments,
+  initialExamSchedules,
   initialSettings,
   initialStudents,
   initialTeachers,
@@ -30,15 +37,22 @@ import {
   showWarningAlert,
 } from '../utils/alerts';
 import {
+  batchSaveCloudExamSchedules,
   batchSaveCloudStudents,
   deleteCloudAttendance,
   deleteCloudClass,
+  deleteCloudExamSchedule,
   deleteCloudStudent,
   deleteCloudTeacher,
   deleteCloudUser,
+  fetchCloudExamConfigs,
+  fetchCloudExamInstruments,
   fetchCloudSettings,
   saveCloudAttendance,
   saveCloudClass,
+  saveCloudExamConfig,
+  saveCloudExamInstrument,
+  saveCloudExamSchedule,
   saveCloudSettings,
   saveCloudStudent,
   saveCloudTeacher,
@@ -46,6 +60,7 @@ import {
   seedInitialFirestoreData,
   subscribeCloudAttendance,
   subscribeCloudClasses,
+  subscribeCloudExamSchedules,
   subscribeCloudStudents,
   subscribeCloudTeachers,
   subscribeCloudUsers,
@@ -57,20 +72,28 @@ import {
   SUPABASE_ANON_KEY,
 } from '../lib/supabase';
 import {
+  batchSaveSupabaseExamSchedules,
   batchSaveSupabaseStudents,
   deleteSupabaseAttendance,
   deleteSupabaseClass,
+  deleteSupabaseExamSchedule,
   deleteSupabaseStudent,
   deleteSupabaseTeacher,
   deleteSupabaseUser,
   fetchSupabaseAttendance,
   fetchSupabaseClasses,
+  fetchSupabaseExamConfigs,
+  fetchSupabaseExamInstruments,
+  fetchSupabaseExamSchedules,
   fetchSupabaseSettings,
   fetchSupabaseStudents,
   fetchSupabaseTeachers,
   fetchSupabaseUsers,
   saveSupabaseAttendance,
   saveSupabaseClass,
+  saveSupabaseExamConfig,
+  saveSupabaseExamInstrument,
+  saveSupabaseExamSchedule,
   saveSupabaseSettings,
   saveSupabaseStudent,
   saveSupabaseTeacher,
@@ -148,8 +171,10 @@ interface AppContextType {
   // Student CRUD & Batch Import
   addStudent: (student: Omit<Student, 'id' | 'createdAt'>) => Student;
   batchImportStudents: (newStudents: Omit<Student, 'id' | 'createdAt'>[]) => number;
+  batchUpdateStudentPhotos: (updates: { studentId: string; photoUrl: string }[]) => number;
   updateStudent: (student: Student) => void;
   deleteStudent: (id: string) => void;
+  batchDeleteStudents: (ids: string[]) => number;
 
   // Class CRUD
   addClass: (cls: Omit<ClassRoom, 'id'>) => ClassRoom;
@@ -171,6 +196,18 @@ interface AppContextType {
   // Settings
   updateSettings: (newSettings: SchoolSettings) => void;
   resetAllData: () => void;
+
+  // ASAS & ASAT Exam Schedules, Configs & Instruments
+  examSchedules: ExamScheduleItem[];
+  accessibleExamSchedules: ExamScheduleItem[];
+  examConfigs: Record<ExamType, ExamMetaConfig>;
+  examInstruments: Record<ExamType, ExamInstrumentConfig>;
+  addExamSchedule: (item: Omit<ExamScheduleItem, 'id'>) => ExamScheduleItem;
+  updateExamSchedule: (item: ExamScheduleItem) => void;
+  deleteExamSchedule: (id: string) => void;
+  copyExamSchedulesToClasses: (examType: ExamType, sourceClass: string, targetClasses: string[]) => number;
+  updateExamConfig: (examType: ExamType, config: ExamMetaConfig) => void;
+  updateExamInstrument: (examType: ExamType, instrument: ExamInstrumentConfig, silent?: boolean) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -196,6 +233,9 @@ const STORAGE_KEYS = {
   SETTINGS: 'mi_rowosari_settings_v1',
   AUTH_USER: 'mi_rowosari_auth_user_v2',
   ADMIN_AUTH: 'mi_rowosari_admin_auth_v1',
+  EXAM_SCHEDULES: 'mi_rowosari_exam_schedules_v1',
+  EXAM_CONFIGS: 'mi_rowosari_exam_configs_v1',
+  EXAM_INSTRUMENTS: 'mi_rowosari_exam_instruments_v1',
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -278,11 +318,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+const LEGACY_SCHOOL_NAMES = [
+  "mi ma'arif rowosari",
+  'mi maarif rowosari',
+  'madrasah ibtidaiyah (mi) rowosari',
+  'mi rowosari',
+  'mi rowosari kendal',
+];
+
+const normalizeSchoolName = (name?: string): string => {
+  const clean = (name || '').trim();
+  if (!clean || LEGACY_SCHOOL_NAMES.includes(clean.toLowerCase())) {
+    return 'MI Islamiyah Rowosari';
+  }
+  return clean;
+};
+
   // 1. Settings state
   const [settings, setSettings] = useState<SchoolSettings>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-      return saved ? JSON.parse(saved) : initialSettings;
+      const parsed = saved ? JSON.parse(saved) : initialSettings;
+      return { ...parsed, schoolName: normalizeSchoolName(parsed.schoolName) };
     } catch {
       return initialSettings;
     }
@@ -338,6 +395,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
+  // 7. ASAS & ASAT Exam Schedules state
+  const [examSchedules, setExamSchedules] = useState<ExamScheduleItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.EXAM_SCHEDULES);
+      return saved ? JSON.parse(saved) : initialExamSchedules;
+    } catch {
+      return initialExamSchedules;
+    }
+  });
+
+  // 8. ASAS & ASAT Exam Configs state
+  const [examConfigs, setExamConfigs] = useState<Record<ExamType, ExamMetaConfig>>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.EXAM_CONFIGS);
+      return saved ? { ...initialExamConfigs, ...JSON.parse(saved) } : initialExamConfigs;
+    } catch {
+      return initialExamConfigs;
+    }
+  });
+
+  // 9. ASAS & ASAT Exam Instruments state
+  const [examInstruments, setExamInstruments] = useState<Record<ExamType, ExamInstrumentConfig>>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.EXAM_INSTRUMENTS);
+      const merged = saved ? { ...initialExamInstruments, ...JSON.parse(saved) } : initialExamInstruments;
+      return {
+        ASAS: { ...merged.ASAS, madrasahName: normalizeSchoolName(merged.ASAS?.madrasahName) },
+        ASAT: { ...merged.ASAT, madrasahName: normalizeSchoolName(merged.ASAT?.madrasahName) },
+      };
+    } catch {
+      return initialExamInstruments;
+    }
+  });
+
   // Cloud Database Status
   const [isCloudConnected, setIsCloudConnected] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -373,22 +464,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
 
         // 2. Fetch all latest tables from Supabase
-        const [cloudSettings, cloudStudents, cloudAttendance, cloudClasses, cloudTeachers, cloudUsers] =
-          await Promise.all([
-            fetchSupabaseSettings(),
-            fetchSupabaseStudents(),
-            fetchSupabaseAttendance(),
-            fetchSupabaseClasses(),
-            fetchSupabaseTeachers(),
-            fetchSupabaseUsers(),
-          ]);
+        const [
+          cloudSettings,
+          cloudStudents,
+          cloudAttendance,
+          cloudClasses,
+          cloudTeachers,
+          cloudUsers,
+          cloudExamSchedules,
+          cloudExamConfigs,
+          cloudExamInstruments,
+        ] = await Promise.all([
+          fetchSupabaseSettings(),
+          fetchSupabaseStudents(),
+          fetchSupabaseAttendance(),
+          fetchSupabaseClasses(),
+          fetchSupabaseTeachers(),
+          fetchSupabaseUsers(),
+          fetchSupabaseExamSchedules(),
+          fetchSupabaseExamConfigs(),
+          fetchSupabaseExamInstruments(),
+        ]);
 
-        if (cloudSettings) setSettings(cloudSettings);
+        if (cloudSettings) {
+          setSettings({ ...cloudSettings, schoolName: normalizeSchoolName(cloudSettings.schoolName) });
+        }
         if (cloudStudents && cloudStudents.length > 0) setStudents(cloudStudents);
         if (cloudAttendance && cloudAttendance.length > 0) setAttendance(cloudAttendance);
         if (cloudClasses && cloudClasses.length > 0) setClasses(cloudClasses);
         if (cloudTeachers && cloudTeachers.length > 0) setTeachers(cloudTeachers);
         if (cloudUsers && cloudUsers.length > 0) setUsers(cloudUsers);
+        if (cloudExamSchedules && cloudExamSchedules.length > 0) setExamSchedules(cloudExamSchedules);
+        if (cloudExamConfigs) {
+          setExamConfigs((prev) => ({ ...prev, ...cloudExamConfigs }));
+        }
+        if (cloudExamInstruments) {
+          setExamInstruments((prev) => ({
+            ASAS: {
+              ...prev.ASAS,
+              ...(cloudExamInstruments.ASAS || {}),
+              madrasahName: normalizeSchoolName(cloudExamInstruments.ASAS?.madrasahName || prev.ASAS.madrasahName),
+            },
+            ASAT: {
+              ...prev.ASAT,
+              ...(cloudExamInstruments.ASAT || {}),
+              madrasahName: normalizeSchoolName(cloudExamInstruments.ASAT?.madrasahName || prev.ASAT.madrasahName),
+            },
+          }));
+        }
 
         setIsCloudConnected(true);
       } else {
@@ -403,8 +526,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           attendance,
         });
 
-        const cloudSettings = await fetchCloudSettings();
-        if (cloudSettings) setSettings(cloudSettings);
+        const [cloudSettings, cloudExamConfigs, cloudExamInstruments] = await Promise.all([
+          fetchCloudSettings(),
+          fetchCloudExamConfigs(),
+          fetchCloudExamInstruments(),
+        ]);
+        if (cloudSettings) {
+          setSettings({ ...cloudSettings, schoolName: normalizeSchoolName(cloudSettings.schoolName) });
+        }
+        if (cloudExamConfigs) {
+          setExamConfigs((prev) => ({ ...prev, ...cloudExamConfigs }));
+        }
+        if (cloudExamInstruments) {
+          setExamInstruments((prev) => ({
+            ASAS: {
+              ...prev.ASAS,
+              ...(cloudExamInstruments.ASAS || {}),
+              madrasahName: normalizeSchoolName(cloudExamInstruments.ASAS?.madrasahName || prev.ASAS.madrasahName),
+            },
+            ASAT: {
+              ...prev.ASAT,
+              ...(cloudExamInstruments.ASAT || {}),
+              madrasahName: normalizeSchoolName(cloudExamInstruments.ASAT?.madrasahName || prev.ASAT.madrasahName),
+            },
+          }));
+        }
         setIsCloudConnected(true);
       }
     } catch (err) {
@@ -445,6 +591,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               const res = await fetchSupabaseUsers();
               if (res) setUsers(res);
             },
+            onExamScheduleChange: async () => {
+              const res = await fetchSupabaseExamSchedules();
+              if (res) setExamSchedules(res);
+            },
           });
           unsubs.push(unsubSupabase);
         } else {
@@ -474,6 +624,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (cloudAttendance && cloudAttendance.length > 0) setAttendance(cloudAttendance);
           });
           unsubs.push(unsubAttendance);
+
+          const unsubExamSchedules = subscribeCloudExamSchedules((cloudSchedules) => {
+            if (cloudSchedules && cloudSchedules.length > 0) setExamSchedules(cloudSchedules);
+          });
+          unsubs.push(unsubExamSchedules);
         }
       } catch (err) {
         console.warn('[Cloud Sync] Real-time subscription error:', err);
@@ -617,6 +772,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(attendance));
   }, [attendance]);
 
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.EXAM_SCHEDULES, JSON.stringify(examSchedules));
+  }, [examSchedules]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.EXAM_CONFIGS, JSON.stringify(examConfigs));
+  }, [examConfigs]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.EXAM_INSTRUMENTS, JSON.stringify(examInstruments));
+  }, [examInstruments]);
+
   // =========================================================================
   // RBAC ACCESS CONTROL FILTERING (BACKEND CONTEXT ENFORCEMENT)
   // If currentUser is GURU, data is strictly filtered to their assignedClass
@@ -632,6 +799,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const accessibleClasses = isGuru && currentUser?.assignedClass
     ? classes.filter((c) => c.name.toLowerCase() === currentUser.assignedClass?.toLowerCase())
     : classes;
+
+  const accessibleExamSchedules = isGuru && currentUser?.assignedClass
+    ? examSchedules.filter((e) => e.className.toLowerCase() === currentUser.assignedClass?.toLowerCase())
+    : examSchedules;
 
   // Determine current scan type based on time and settings
   const determineScanType = useCallback((): AttendanceType => {
@@ -998,11 +1169,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [students]
   );
 
+  const batchUpdateStudentPhotos = useCallback(
+    (updates: { studentId: string; photoUrl: string }[]) => {
+      if (updates.length === 0) return 0;
+      const photoMap = new Map(updates.map((u) => [u.studentId, u.photoUrl]));
+      const updatedStudents: Student[] = [];
+
+      setStudents((prev) =>
+        prev.map((s) => {
+          const nextPhoto = photoMap.get(s.id);
+          if (nextPhoto !== undefined) {
+            const updated = { ...s, photoUrl: nextPhoto };
+            updatedStudents.push(updated);
+            return updated;
+          }
+          return s;
+        })
+      );
+
+      // Build list from current state snapshot if React updater runs asynchronously
+      const cloudList = students
+        .filter((s) => photoMap.has(s.id))
+        .map((s) => ({ ...s, photoUrl: photoMap.get(s.id)! }));
+
+      const payloadToSync = cloudList.length > 0 ? cloudList : updatedStudents;
+      if (payloadToSync.length > 0) {
+        batchSaveCloudStudents(payloadToSync);
+        batchSaveSupabaseStudents(payloadToSync);
+      }
+
+      showSuccessToast(`Berhasil memasang foto untuk ${updates.length} siswa!`);
+      return updates.length;
+    },
+    [students]
+  );
+
   const deleteStudent = useCallback((id: string) => {
     setStudents((prev) => prev.filter((s) => s.id !== id));
     deleteCloudStudent(id);
     deleteSupabaseStudent(id);
     showSuccessToast('Data siswa berhasil dihapus.');
+  }, []);
+
+  const batchDeleteStudents = useCallback((ids: string[]) => {
+    if (ids.length === 0) return 0;
+    const idSet = new Set(ids);
+    setStudents((prev) => prev.filter((s) => !idSet.has(s.id)));
+    ids.forEach((id) => {
+      deleteCloudStudent(id);
+      deleteSupabaseStudent(id);
+    });
+    showSuccessToast(`Berhasil menghapus ${ids.length} data siswa.`);
+    return ids.length;
   }, []);
 
   // Class CRUD
@@ -1014,22 +1232,83 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setClasses((prev) => [...prev, newClass]);
     saveCloudClass(newClass);
     saveSupabaseClass(newClass);
-    showSuccessToast(`Kelas ${newClass.name} berhasil ditambahkan.`);
+    showSuccessToast(`Rombel ${newClass.name} berhasil ditambahkan.`);
     return newClass;
   }, []);
 
-  const updateClass = useCallback((updated: ClassRoom) => {
-    setClasses((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-    saveCloudClass(updated);
-    saveSupabaseClass(updated);
-    showSuccessToast(`Data kelas ${updated.name} berhasil diperbarui.`);
-  }, []);
+  const updateClass = useCallback(
+    (updated: ClassRoom) => {
+      const existing = classes.find((c) => c.id === updated.id);
+      const oldName = existing?.name;
+      const newName = updated.name.trim();
+      const normalizedUpdated = { ...updated, name: newName };
+
+      setClasses((prev) => prev.map((c) => (c.id === updated.id ? normalizedUpdated : c)));
+      saveCloudClass(normalizedUpdated);
+      saveSupabaseClass(normalizedUpdated);
+
+      if (oldName && oldName !== newName) {
+        const affectedStudents = students
+          .filter((s) => s.className === oldName)
+          .map((s) => ({ ...s, className: newName }));
+        if (affectedStudents.length > 0) {
+          setStudents((prev) =>
+            prev.map((s) => (s.className === oldName ? { ...s, className: newName } : s))
+          );
+          batchSaveCloudStudents(affectedStudents);
+          batchSaveSupabaseStudents(affectedStudents);
+        }
+
+        const affectedTeachers = teachers.filter((t) => t.assignedClass === oldName);
+        if (affectedTeachers.length > 0) {
+          setTeachers((prev) =>
+            prev.map((t) =>
+              t.assignedClass === oldName ? { ...t, assignedClass: newName } : t
+            )
+          );
+          affectedTeachers.forEach((t) => {
+            const nt = { ...t, assignedClass: newName };
+            saveCloudTeacher(nt);
+            saveSupabaseTeacher(nt);
+          });
+        }
+
+        const affectedUsers = users.filter((u) => u.assignedClass === oldName);
+        if (affectedUsers.length > 0) {
+          setUsers((prev) =>
+            prev.map((u) =>
+              u.assignedClass === oldName ? { ...u, assignedClass: newName } : u
+            )
+          );
+          affectedUsers.forEach((u) => {
+            const nu = { ...u, assignedClass: newName };
+            saveCloudUser(nu);
+            saveSupabaseUser(nu);
+          });
+        }
+
+        const affectedSchedules = examSchedules
+          .filter((ex) => ex.className === oldName)
+          .map((ex) => ({ ...ex, className: newName }));
+        if (affectedSchedules.length > 0) {
+          setExamSchedules((prev) =>
+            prev.map((ex) => (ex.className === oldName ? { ...ex, className: newName } : ex))
+          );
+          batchSaveCloudExamSchedules(affectedSchedules);
+          batchSaveSupabaseExamSchedules(affectedSchedules);
+        }
+      }
+
+      showSuccessToast(`Data rombel ${normalizedUpdated.name} berhasil diperbarui.`);
+    },
+    [classes, students, teachers, users, examSchedules]
+  );
 
   const deleteClass = useCallback((id: string) => {
     setClasses((prev) => prev.filter((c) => c.id !== id));
     deleteCloudClass(id);
     deleteSupabaseClass(id);
-    showSuccessToast('Kelas berhasil dihapus.');
+    showSuccessToast('Rombel berhasil dihapus.');
   }, []);
 
   // Teacher CRUD
@@ -1132,10 +1411,104 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUsers(initialUsers);
     setStudents(initialStudents);
     setAttendance(getSampleAttendanceRecords());
+    setExamSchedules(initialExamSchedules);
+    setExamConfigs(initialExamConfigs);
+    setExamInstruments(initialExamInstruments);
     saveCloudSettings(initialSettings);
     saveSupabaseSettings(initialSettings);
     showSuccessToast('Semua data berhasil direset ke pengaturan awal.');
   }, []);
+
+  // ASAS & ASAT Exam Schedules & Configs CRUD
+  const addExamSchedule = useCallback((itemData: Omit<ExamScheduleItem, 'id'>) => {
+    const newItem: ExamScheduleItem = {
+      ...itemData,
+      id: `ex-${itemData.examType.toLowerCase()}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    };
+    setExamSchedules((prev) => [...prev, newItem]);
+    saveCloudExamSchedule(newItem);
+    saveSupabaseExamSchedule(newItem);
+    showSuccessToast(`Jadwal ${newItem.subject} (${newItem.className}) berhasil ditambahkan.`);
+    return newItem;
+  }, []);
+
+  const updateExamSchedule = useCallback((updated: ExamScheduleItem) => {
+    setExamSchedules((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+    saveCloudExamSchedule(updated);
+    saveSupabaseExamSchedule(updated);
+    showSuccessToast(`Jadwal ${updated.subject} berhasil diperbarui.`);
+  }, []);
+
+  const deleteExamSchedule = useCallback((id: string) => {
+    setExamSchedules((prev) => prev.filter((item) => item.id !== id));
+    deleteCloudExamSchedule(id);
+    deleteSupabaseExamSchedule(id);
+    showSuccessToast('Jadwal mata pelajaran ujian berhasil dihapus.');
+  }, []);
+
+  const copyExamSchedulesToClasses = useCallback(
+    (examType: ExamType, sourceClass: string, targetClasses: string[]) => {
+      const sourceItems = examSchedules.filter(
+        (s) => s.examType === examType && s.className === sourceClass
+      );
+      if (sourceItems.length === 0 || targetClasses.length === 0) return 0;
+
+      const createdItems: ExamScheduleItem[] = [];
+      const ts = Date.now();
+      targetClasses.forEach((targetClass, cIdx) => {
+        if (targetClass === sourceClass) return;
+        sourceItems.forEach((src, sIdx) => {
+          createdItems.push({
+            ...src,
+            id: `ex-${examType.toLowerCase()}-cp-${ts}-${cIdx}-${sIdx}`,
+            className: targetClass,
+          });
+        });
+      });
+
+      if (createdItems.length > 0) {
+        setExamSchedules((prev) => {
+          // Remove existing schedule for those targetClasses & examType to avoid duplicates
+          const filtered = prev.filter(
+            (item) => !(item.examType === examType && targetClasses.includes(item.className))
+          );
+          return [...filtered, ...createdItems];
+        });
+        batchSaveCloudExamSchedules(createdItems);
+        batchSaveSupabaseExamSchedules(createdItems);
+        showSuccessToast(
+          `Berhasil menyalin ${sourceItems.length} jadwal ${examType} ke ${targetClasses.length} kelas!`
+        );
+      }
+      return createdItems.length;
+    },
+    [examSchedules]
+  );
+
+  const updateExamConfig = useCallback((examType: ExamType, config: ExamMetaConfig) => {
+    setExamConfigs((prev) => ({
+      ...prev,
+      [examType]: config,
+    }));
+    saveCloudExamConfig(examType, config);
+    saveSupabaseExamConfig(config);
+    showSuccessToast(`Pengaturan Kartu & Panitia ${examType} berhasil disimpan.`);
+  }, []);
+
+  const updateExamInstrument = useCallback(
+    (examType: ExamType, instrument: ExamInstrumentConfig, silent = false) => {
+      setExamInstruments((prev) => ({
+        ...prev,
+        [examType]: instrument,
+      }));
+      saveCloudExamInstrument(examType, instrument);
+      saveSupabaseExamInstrument(instrument);
+      if (!silent) {
+        showSuccessToast(`Instrumen Pelaksanaan & Kelengkapan ${examType} berhasil disimpan.`);
+      }
+    },
+    []
+  );
 
   return (
     <AppContext.Provider
@@ -1183,8 +1556,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteAttendanceRecord,
         addStudent,
         batchImportStudents,
+        batchUpdateStudentPhotos,
         updateStudent,
         deleteStudent,
+        batchDeleteStudents,
         addClass,
         updateClass,
         deleteClass,
@@ -1198,6 +1573,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resetUserPassword,
         updateSettings,
         resetAllData,
+        examSchedules,
+        accessibleExamSchedules,
+        examConfigs,
+        examInstruments,
+        addExamSchedule,
+        updateExamSchedule,
+        deleteExamSchedule,
+        copyExamSchedulesToClasses,
+        updateExamConfig,
+        updateExamInstrument,
       }}
     >
       {children}
