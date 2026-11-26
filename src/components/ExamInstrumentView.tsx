@@ -82,6 +82,8 @@ function formatShortIndoDate(dateStr: string): string {
   }).format(d);
 }
 
+const formatDMY = (dateStr: string): string => { if (!dateStr) return '-'; const p = dateStr.split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : dateStr; };
+
 export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
   examType,
   onNavigateSubTab,
@@ -108,6 +110,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
     committeeChairNip: savedInstrument.committeeChairNip || savedConfig?.committeeChairNip || '',
     skNumber: savedInstrument.skNumber || savedConfig?.skNumber || (examType === 'ASAS' ? '045/MI-RWS/XI/2026' : '089/MI-RWS/V/2027'),
     skDate: savedInstrument.skDate || savedConfig?.skDate || (examType === 'ASAS' ? '2026-11-20' : '2027-05-20'),
+    printDate: savedInstrument.printDate || savedConfig?.printDate || new Date().toLocaleDateString('en-CA'),
   }));
   const [innerMode, setInnerMode] = useState<'instrument' | 'submenu'>('instrument');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
@@ -246,6 +249,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
         committeeChairNip: draft.committeeChairNip || currentConfig.committeeChairNip,
         skNumber: draft.skNumber || currentConfig.skNumber,
         skDate: draft.skDate || currentConfig.skDate,
+        printDate: draft.printDate || currentConfig.printDate,
       }, true);
     }
   };
@@ -273,6 +277,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
           committeeChairNip: updatedDraft.committeeChairNip || currentConfig.committeeChairNip,
           skNumber: updatedDraft.skNumber || currentConfig.skNumber,
           skDate: updatedDraft.skDate || currentConfig.skDate,
+        printDate: updatedDraft.printDate || currentConfig.printDate,
         },
         true
       );
@@ -801,7 +806,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
     `;
   };
 
-  const printSubMenuDocument = (title: string, bodyHtml: string) => {
+  const printSubMenuDocument = (title: string, bodyHtml: string, landscape = false) => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const html = `
       <!DOCTYPE html>
@@ -810,7 +815,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
         <base href="${origin}/" />
         <title>${escapeHtml(title)}</title>
         <style>
-          @page { size: A4 portrait; margin: 14mm; }
+          @page { size: A4 ${landscape ? 'landscape' : 'portrait'}; margin: ${landscape ? '10mm' : '14mm'}; }
           *, *::before, *::after { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; }
           body { font-family: Arial, Helvetica, sans-serif; color: #0f172a; font-size: 11px; margin: 0; padding: 0; }
           table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
@@ -819,7 +824,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
           tr:nth-child(even) td { background: #f8fafc !important; }
           .signs { display: flex; justify-content: space-between; padding: 0 24px; margin-top: 22px; page-break-inside: avoid; }
           .sign-box { text-align: center; width: 220px; }
-          .sign-space { height: 50px; }
+          .sign-space { height: 72px; }
         </style>
       </head>
       <body>
@@ -1182,7 +1187,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
         <div style="border:1.5px solid #065f46;border-radius:8px;padding:16px 20px;margin-bottom:18px;background:#ffffff;">
           <ol style="margin:0;padding-left:20px;font-size:12px;line-height:1.65;">${items}</ol>
         </div>
-        <div class="signs">
+        <p style="text-align:right;margin:0 24px 6px 0;">Rowosari, ${formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA'))}</p><div class="signs">
           <div class="sign-box">
             <p style="margin:0;">Mengetahui,</p>
             <p style="margin:2px 0 0 0;font-weight:bold;">${escapeHtml(draft.headmasterTitle)}</p>
@@ -1209,7 +1214,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
 
     if (schedItems.length > 0) {
       const seen = new Set<string>();
-      const list: { subject: string; dayDate: string; timeRange: string; room: string; supervisor: string }[] = [];
+      const list: { subject: string; date: string; dayDate: string; timeRange: string; room: string; supervisor: string }[] = [];
       schedItems.forEach((sc) => {
         const trimmed = sc.subject.trim();
         if (trimmed && !seen.has(trimmed)) {
@@ -1218,7 +1223,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
           const dayDate = sc.dayName ? `${sc.dayName}, ${dateStr}` : dateStr;
           const timeRange = sc.timeStart && sc.timeEnd ? `${sc.timeStart} - ${sc.timeEnd} WIB` : '';
           list.push({
-            subject: trimmed,
+            subject: trimmed, date: sc.date,
             dayDate,
             timeRange,
             room: sc.room || examConfigs[examType]?.defaultRoom || 'Ruang 01',
@@ -1231,7 +1236,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
 
     if (subjectEntries.length > 0) {
       return subjectEntries.map((se) => ({
-        subject: se.subject,
+        subject: se.subject, date: '',
         dayDate: se.dayDateLabel || '',
         timeRange: '07:30 - 09:00 WIB',
         room: examConfigs[examType]?.defaultRoom || 'Ruang 01',
@@ -1340,7 +1345,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
             page-break-inside: avoid;
           }
           .sign-box { text-align: center; width: 220px; }
-          .sign-space { height: 42px; }
+          .sign-space { height: 72px; }
         </style>
       </head>
       <body>
@@ -1358,7 +1363,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
     const subjData = currentSubjectData;
     const prefix = examConfigs[examType]?.participantPrefix || 'ASAS';
     const classCode = subMenuClass.replace(/[^0-9A-Z]/gi, '').toUpperCase();
-    const chairName = examConfigs[examType]?.committeeChair || draft.committeeChair || 'M. Abdul Mukhid, S.Pd.I';
+    const chairName = examConfigs[examType]?.committeeChair || draft.committeeChair || 'Ahmad Mustofa, S.Pd';
     const chairNip = examConfigs[examType]?.committeeChairNip || draft.committeeChairNip || '';
 
     const rows =
@@ -1371,8 +1376,8 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
               <td style="font-family:monospace;font-weight:bold;width:125px;text-align:center;">${prefix}-${classCode}-${String(idx + 1).padStart(3, '0')}</td>
               <td style="font-family:monospace;width:95px;text-align:center;">${escapeHtml(st.nisn || st.nis || '-')}</td>
               <td style="font-weight:bold;text-transform:uppercase;">${escapeHtml(st.name)}</td>
-              <td style="height:24px;width:80px;font-size:9.5px;">${idx % 2 === 0 ? `${idx + 1}. .............` : ''}</td>
-              <td style="height:24px;width:80px;font-size:9.5px;">${idx % 2 === 1 ? `${idx + 1}. .............` : ''}</td>
+              <td style="height:56px;width:120px;font-size:9.5px;">${idx % 2 === 0 ? `${idx + 1}. .............` : ''}</td>
+              <td style="height:56px;width:120px;font-size:9.5px;">${idx % 2 === 1 ? `${idx + 1}. .............` : ''}</td>
             </tr>
           `
             )
@@ -1394,12 +1399,12 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
               <th style="width:125px;">No. Peserta</th>
               <th style="width:95px;">NISN</th>
               <th>Nama Peserta Didik</th>
-              <th colspan="2" style="width:160px;">Tanda Tangan</th>
+              <th colspan="2" style="width:240px;">Tanda Tangan</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
         </table>
-        <div class="signs">
+        <p style="text-align:right;margin:0 24px 6px 0;">Rowosari, ${formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA'))}</p><div class="signs">
           <div class="sign-box">
             <p style="margin:0;">Mengetahui, Panitia ${examType}</p>
             <div class="sign-space"></div>
@@ -1416,7 +1421,35 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
     );
   };
 
-  const handlePrintDaftarHadirSemuaMapel = () => {
+  // DAFTAR HADIR 1 LEMBAR PER KELAS (A4 LANDSCAPE): matriks siswa x sesi jadwal kelas itu sendiri
+const handlePrintDaftarHadirSatuLembar = () => {
+  const classStudents = accessibleStudents.filter((s) => s.className === subMenuClass && s.status === 'aktif');
+  if (classStudents.length === 0) { showWarningToast('Tidak ada siswa aktif di ' + subMenuClass + '.'); return; }
+  const subjects = getClassSubjectsList(subMenuClass);
+  if (subjects.length === 0) { showWarningToast('Tidak ditemukan mata pelajaran untuk kelas ' + subMenuClass + '.'); return; }
+  const chairName = examConfigs[examType]?.committeeChair || draft.committeeChair || 'Ahmad Mustofa, S.Pd';
+  const chairNip = examConfigs[examType]?.committeeChairNip || draft.committeeChairNip || '';
+  const n = subjects.length;
+  const m = classStudents.length;
+  const rowH = Math.max(20, Math.min(56, Math.floor(420 / m)));
+  const sessW = Math.floor(780 / n) / 10;
+  const headCells = subjects.map((sj) => {
+    const d = sj.date ? formatDMY(sj.date) : sj.dayDate;
+    const day = (sj.dayDate || '').split(',')[0].slice(0, 3);
+    return '<th style="font-size:8px;padding:2px 1px;text-align:center;">' + escapeHtml(day) + '<br>' + escapeHtml(d) + '<br><span style="font-size:7.5px;">' + escapeHtml(sj.subject) + '</span></th>';
+  }).join('');
+  const bodyRows = classStudents.map((st, idx) => {
+    let cells = '';
+    for (let k = 0; k < n; k++) { cells += '<td style="height:' + rowH + 'px;"></td>'; }
+    return '<tr><td style="text-align:center;font-size:9px;">' + (idx + 1) + '</td><td style="font-weight:bold;text-transform:uppercase;font-size:9px;">' + escapeHtml(st.name) + '</td>' + cells + '</tr>';
+  }).join('');
+  const bodyHtml = '<div style="display:flex;justify-content:space-between;background:#f8fafc;border:1px solid #cbd5e1;padding:5px 8px;margin-bottom:8px;font-size:10px;"><div><strong>Kelas / Ruang:</strong> ' + escapeHtml(subMenuClass) + '</div><div><strong>Periode:</strong> ' + escapeHtml(draft.periodLabel || '') + '</div><div><strong>Jumlah Siswa:</strong> ' + m + ' &nbsp;•&nbsp; <strong>Sesi:</strong> ' + n + '</div></div>'
+    + '<table style="table-layout:fixed;width:100%;font-size:9px;"><colgroup><col style="width:26px"><col><col span="' + n + '" style="width:' + sessW + '%"></colgroup><thead><tr><th rowspan="2" style="font-size:9px;">No</th><th rowspan="2" style="font-size:9px;">Nama Peserta Didik</th><th colspan="' + n + '" style="font-size:9px;">Kehadiran / Tanda Tangan &mdash; ' + escapeHtml(draft.periodLabel || '') + '</th></tr><tr>' + headCells + '</tr></thead><tbody>' + bodyRows + '</tbody></table>'
+    + '<p style="text-align:right;margin:0 24px 6px 0;">Rowosari, ' + formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA')) + '</p><div class="signs" style="margin-top:10px;"><div class="sign-box"><p style="margin:0;">Mengetahui, Panitia ' + examType + '</p><div class="sign-space" style="height:56px;"></div><p style="margin:0;font-weight:bold;text-decoration:underline;">' + escapeHtml(chairName) + '</p>' + (chairNip ? '<p style="margin:2px 0 0;font-size:9.5px;">NIP. ' + escapeHtml(chairNip) + '</p>' : '') + '</div><div class="sign-box"><p style="margin:0;">Pengawas Ruang,</p><div class="sign-space" style="height:56px;"></div><p style="margin:0;font-weight:bold;text-decoration:underline;">( .................................. )</p></div></div>';
+  printSubMenuDocument('DAFTAR HADIR PESERTA ' + examType + ' - ' + subMenuClass.toUpperCase() + ' (1 LEMBAR)', bodyHtml, true);
+};
+
+const handlePrintDaftarHadirSemuaMapel = () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const classStudents = accessibleStudents.filter(
       (s) => s.className === subMenuClass && s.status === 'aktif'
@@ -1434,7 +1467,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
 
     const prefix = examConfigs[examType]?.participantPrefix || 'ASAS';
     const classCode = subMenuClass.replace(/[^0-9A-Z]/gi, '').toUpperCase();
-    const chairName = examConfigs[examType]?.committeeChair || draft.committeeChair || 'M. Abdul Mukhid, S.Pd.I';
+    const chairName = examConfigs[examType]?.committeeChair || draft.committeeChair || 'Ahmad Mustofa, S.Pd';
     const chairNip = examConfigs[examType]?.committeeChairNip || draft.committeeChairNip || '';
 
     const studentRowsHtml = classStudents
@@ -1445,8 +1478,8 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
           <td style="font-family:monospace;font-weight:bold;width:125px;text-align:center;">${prefix}-${classCode}-${String(idx + 1).padStart(3, '0')}</td>
           <td style="font-family:monospace;width:95px;text-align:center;">${escapeHtml(st.nisn || st.nis || '-')}</td>
           <td style="font-weight:bold;text-transform:uppercase;">${escapeHtml(st.name)}</td>
-          <td style="height:22px;width:80px;font-size:9px;">${idx % 2 === 0 ? `${idx + 1}. .............` : ''}</td>
-          <td style="height:22px;width:80px;font-size:9px;">${idx % 2 === 1 ? `${idx + 1}. .............` : ''}</td>
+          <td style="height:56px;width:120px;font-size:9px;">${idx % 2 === 0 ? `${idx + 1}. .............` : ''}</td>
+          <td style="height:56px;width:120px;font-size:9px;">${idx % 2 === 1 ? `${idx + 1}. .............` : ''}</td>
         </tr>
       `
       )
@@ -1470,7 +1503,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
                   <th style="width:125px;">No. Peserta</th>
                   <th style="width:95px;">NISN</th>
                   <th>Nama Peserta Didik</th>
-                  <th colspan="2" style="width:160px;">Tanda Tangan</th>
+                  <th colspan="2" style="width:240px;">Tanda Tangan</th>
                 </tr>
               </thead>
               <tbody>
@@ -1478,7 +1511,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
               </tbody>
             </table>
           </div>
-          <div class="signs">
+          <p style="text-align:right;margin:0 24px 6px 0;">Rowosari, ${formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA'))}</p><div class="signs">
             <div class="sign-box">
               <p style="margin:0;">Mengetahui, Panitia ${examType}</p>
               <div class="sign-space"></div>
@@ -1512,7 +1545,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
     const sched = accessibleExamSchedules.find(
       (s) => s.examType === examType && s.className === subMenuClass && s.subject === currentSubjectData.subject
     );
-    const chairName = examConfigs[examType]?.committeeChair || draft.committeeChair || 'M. Abdul Mukhid, S.Pd.I';
+    const chairName = examConfigs[examType]?.committeeChair || draft.committeeChair || 'Ahmad Mustofa, S.Pd';
     const chairNip = examConfigs[examType]?.committeeChairNip || draft.committeeChairNip || '';
 
     printSubMenuDocument(
@@ -1533,7 +1566,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
           </table>
           <p style="margin:8px 0 0 0;">Demikian berita acara pelaksanaan ujian ini dibuat dengan sesungguhnya untuk digunakan sebagaimana mestinya.</p>
         </div>
-        <div class="signs">
+        <p style="text-align:right;margin:0 24px 6px 0;">Rowosari, ${formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA'))}</p><div class="signs">
           <div class="sign-box">
             <p style="margin:0;">Pengawas Ruang,</p>
             <div class="sign-space"></div>
@@ -1565,7 +1598,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
       return;
     }
 
-    const chairName = examConfigs[examType]?.committeeChair || draft.committeeChair || 'M. Abdul Mukhid, S.Pd.I';
+    const chairName = examConfigs[examType]?.committeeChair || draft.committeeChair || 'Ahmad Mustofa, S.Pd';
     const chairNip = examConfigs[examType]?.committeeChairNip || draft.committeeChairNip || '';
 
     const pagesHtml = subjects
@@ -1590,7 +1623,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
               <p style="margin:6px 0 0 0;">Demikian berita acara pelaksanaan ujian ini dibuat dengan sesungguhnya untuk digunakan sebagaimana mestinya.</p>
             </div>
           </div>
-          <div class="signs">
+          <p style="text-align:right;margin:0 24px 6px 0;">Rowosari, ${formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA'))}</p><div class="signs">
             <div class="sign-box">
               <p style="margin:0;">Pengawas Ruang,</p>
               <div class="sign-space"></div>
@@ -1657,7 +1690,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
           </thead>
           <tbody>${rows}</tbody>
         </table>
-        <div class="signs">
+        <p style="text-align:right;margin:0 24px 6px 0;">Rowosari, ${formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA'))}</p><div class="signs">
           <div class="sign-box">
             <p style="margin:0;">Mengetahui, ${escapeHtml(draft.headmasterTitle)}</p>
             <div class="sign-space"></div>
@@ -1732,7 +1765,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
               <tbody>${rows}</tbody>
             </table>
           </div>
-          <div class="signs">
+          <p style="text-align:right;margin:0 24px 6px 0;">Rowosari, ${formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA'))}</p><div class="signs">
             <div class="sign-box">
               <p style="margin:0;">Mengetahui, ${escapeHtml(headmasterTitle)}</p>
               <div class="sign-space"></div>
@@ -1796,7 +1829,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
             </tr>
           </tbody>
         </table>
-        <div class="signs">
+        <p style="text-align:right;margin:0 24px 6px 0;">Rowosari, ${formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA'))}</p><div class="signs">
           <div class="sign-box">
             <p style="margin:0;">Mengetahui, ${escapeHtml(draft.headmasterTitle)}</p>
             <div class="sign-space"></div>
@@ -2065,7 +2098,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
               </ol>
             </div>
           </div>
-          <div class="signs">
+          <p style="text-align:right;margin:0 24px 6px 0;">Rowosari, ${formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA'))}</p><div class="signs">
             <div class="sign-box">
               <p style="margin:0;">Mengetahui,</p>
               <p style="margin:2px 0 0 0;font-weight:bold;">${escapeHtml(draft.headmasterTitle)}</p>
@@ -2104,7 +2137,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
               <tbody>${daftarHadirRows}</tbody>
             </table>
           </div>
-          <div class="signs">
+          <p style="text-align:right;margin:0 24px 6px 0;">Rowosari, ${formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA'))}</p><div class="signs">
             <div class="sign-box">
               <p style="margin:0;">Mengetahui, Panitia ${examType}</p>
               <div class="sign-space"></div>
@@ -2138,7 +2171,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
               <p style="margin:8px 0 0 0;">Demikian berita acara pelaksanaan ujian ini dibuat dengan sesungguhnya untuk digunakan sebagaimana mestinya.</p>
             </div>
           </div>
-          <div class="signs">
+          <p style="text-align:right;margin:0 24px 6px 0;">Rowosari, ${formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA'))}</p><div class="signs">
             <div class="sign-box">
               <p style="margin:0;">Pengawas Ruang,</p>
               <div class="sign-space"></div>
@@ -2175,7 +2208,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
               <tbody>${daftarNilaiRows}</tbody>
             </table>
           </div>
-          <div class="signs">
+          <p style="text-align:right;margin:0 24px 6px 0;">Rowosari, ${formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA'))}</p><div class="signs">
             <div class="sign-box">
               <p style="margin:0;">Mengetahui, ${escapeHtml(draft.headmasterTitle)}</p>
               <div class="sign-space"></div>
@@ -2212,7 +2245,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
               </tbody>
             </table>
           </div>
-          <div class="signs">
+          <p style="text-align:right;margin:0 24px 6px 0;">Rowosari, ${formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA'))}</p><div class="signs">
             <div class="sign-box">
               <p style="margin:0;">Mengetahui, ${escapeHtml(draft.headmasterTitle)}</p>
               <div class="sign-space"></div>
@@ -2242,7 +2275,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
               <tbody>${bellRows}</tbody>
             </table>
           </div>
-          <div class="signs">
+          <p style="text-align:right;margin:0 24px 6px 0;">Rowosari, ${formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA'))}</p><div class="signs">
             <div class="sign-box">
               <p style="margin:0;">Mengetahui,</p>
               <p style="margin:2px 0 0 0;font-weight:bold;">${escapeHtml(draft.headmasterTitle)}</p>
@@ -3253,8 +3286,8 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-emerald-700"
                     />
                     <span className="text-[10px] text-slate-500 mt-0.5 block">
-                      Otomatis muncul pada Diktum KEDUA SK, kartu peserta, jadwal, &amp; kartu meja
-                    </span>
+                      Otomatis muncul pada Diktum KEDUA SK, kartu peserta, jadwal, &amp; kartu meja</span><label className="block font-black uppercase text-[10px] text-slate-500 mb-1 mt-2">Tanggal Cetak (Tanggal Dokumen)</label><input type="date" value={draft.printDate || ''} onChange={(e) => setDraft({ ...draft, printDate: e.target.value })} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold" /><span className="text-[10px] text-slate-500 mt-0.5 block">Dipakai pada blok tanda tangan semua dokumen (Rowosari, ...).</span>
+                    
                   </div>
                   <div>
                     <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">
@@ -3549,11 +3582,11 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
                       </button>
                       <button
                         type="button"
-                        onClick={handlePrintDaftarHadirSemuaMapel}
+                        onClick={handlePrintDaftarHadirSatuLembar}
                         className="px-4 py-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black uppercase text-xs flex items-center space-x-2 cursor-pointer shadow-md shadow-slate-900/15 transition-all"
                       >
                         <Layers className="w-4 h-4 text-emerald-400" />
-                        <span>Cetak Semua Mapel Sekaligus ({subMenuClass})</span>
+                        <span>Cetak 1 Lembar per Kelas • Landscape ({subMenuClass})</span>
                       </button>
                     </div>
                   </div>

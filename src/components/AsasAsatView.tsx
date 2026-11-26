@@ -67,6 +67,9 @@ function formatIndonesianShortDate(dateStr: string): string {
   }).format(d);
 }
 
+const formatDMY = (dateStr: string): string => { if (!dateStr) return '-'; const p = dateStr.split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : dateStr; };
+const formatLongIndoDate = (dateStr: string): string => { if (!dateStr) return '-'; const p = dateStr.split('-').map(Number); if (p.length !== 3 || p.some(isNaN)) return dateStr; return new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(p[0], p[1] - 1, p[2])); };
+
 export const AsasAsatView: React.FC = () => {
   const {
     settings,
@@ -291,7 +294,7 @@ export const AsasAsatView: React.FC = () => {
           td { padding: 7px 6px; border: 1px solid #cbd5e1; font-size: 11px; }
           tr:nth-child(even) td { background: #f8fafc; }
           .signs { display: flex; justify-content: space-between; padding: 0 28px; margin-top: 24px; page-break-inside: avoid; }
-          .sign-box { text-align: center; width: 210px; }
+          .sign-box { text-align: center; width: 260px; }
           .sign-space { height: 55px; }
         </style>
       </head>
@@ -332,7 +335,7 @@ export const AsasAsatView: React.FC = () => {
             <p style="margin:2px 0 0 0; font-size:10px;">NIP. ${settings.headmasterNip}</p>
           </div>
           <div class="sign-box">
-            <p style="margin:0;">Rowosari, ${configDraft.periodLabel.split('-')[0].trim()}</p>
+            <p style="margin:0;">Rowosari, ${formatLongIndoDate(configDraft.printDate || new Date().toLocaleDateString('en-CA'))}</p>
             <p style="margin:2px 0 0 0; font-weight:bold;">Ketua Panitia ${examType}</p>
             <div class="sign-space"></div>
             <p style="margin:0; font-weight:bold; text-decoration:underline;">${configDraft.committeeChair}</p>
@@ -770,7 +773,7 @@ export const AsasAsatView: React.FC = () => {
               .map(
                 (sc) => `
                 <tr>
-                  <td style="white-space:nowrap;">${(sc.dayName || '').slice(0, 3)}, ${(sc.date || '').length >= 5 ? sc.date.slice(5) : sc.date || '-'}</td>
+                  <td style="white-space:nowrap;">${(sc.dayName || '').slice(0, 3)}, ${formatDMY(sc.date)}</td>
                   <td style="font-family:monospace; font-weight:700; white-space:nowrap;">${sc.timeStart}</td>
                   <td style="word-break:break-word;"><strong>${sc.subject}</strong></td>
                 </tr>
@@ -2010,7 +2013,7 @@ export const AsasAsatView: React.FC = () => {
                                 <tr key={sc.id} className="bg-white">
                                   <td className="p-0.5 border border-slate-200 whitespace-nowrap">
                                     {(sc.dayName || '').slice(0, 3)},{' '}
-                                    {(sc.date || '').length >= 5 ? sc.date.slice(5) : sc.date || '-'}
+                                    {formatDMY(sc.date)}
                                   </td>
                                   <td className="p-0.5 border border-slate-200 font-mono font-bold whitespace-nowrap">
                                     {sc.timeStart}

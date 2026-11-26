@@ -167,6 +167,7 @@ export interface ExamMetaConfig {
   backMode: 'schedule' | 'rules';
   skNumber?: string;
   skDate?: string;
+  printDate?: string;
 }
 
 export type ExamChecklistStatus = 'ada' | 'tidak_ada' | 'kosong';
@@ -266,6 +267,7 @@ export interface ExamInstrumentConfig {
   rabItems: ExamRabItem[];
   bellSchedule: ExamBellItem[];
   periodLabel?: string;
+  printDate?: string;
   committeeChair?: string;
   committeeChairNip?: string;
 }
