@@ -406,8 +406,8 @@ export const AsasAsatView: React.FC = () => {
                   <span class="val name">: <strong>${student.name}</strong></span>
                 </div>
                 <div class="info-row">
-                  <span class="label">NIS / NISN</span>
-                  <span class="val">: ${student.nis || '-'}${student.nisn ? ` / ${student.nisn}` : ''}</span>
+                  <span class="label">NISN</span>
+                  <span class="val">: <strong>${student.nisn || student.nis || '-'}</strong></span>
                 </div>
                 <div class="info-row">
                   <span class="label">Kelas / Ruang</span>
@@ -844,7 +844,7 @@ export const AsasAsatView: React.FC = () => {
             <div class="student-info">
               <div class="participant-no" style="color: ${theme.accentColor}; border-color: ${theme.accentColor};">${participantNo}</div>
               <div class="info-name">${student.name}</div>
-              <div class="info-row"><span>NIS</span><strong>: ${student.nis}${student.nisn ? ' / ' + student.nisn : ''}</strong></div>
+              <div class="info-row"><span>NISN</span><strong>: ${student.nisn || student.nis || '-'}</strong></div>
               <div class="info-row"><span>Kelas</span><strong style="color: ${theme.accentColor};">: ${student.className}</strong></div>
               <div class="info-row"><span>Periode</span><strong>: ${configDraft.periodLabel}</strong></div>
             </div>
@@ -853,7 +853,7 @@ export const AsasAsatView: React.FC = () => {
           <div class="card-footer">
             <div class="barcode-box">
               <div class="fake-barcode">||||| | ||| ||||</div>
-              <span class="nis-text">NIS: ${student.nis}</span>
+              <span class="nis-text">NISN: ${student.nisn || student.nis || '-'}</span>
             </div>
             <div class="signature-box">
               <div class="stamp-row">
@@ -1913,10 +1913,9 @@ export const AsasAsatView: React.FC = () => {
                         {selectedStudent.name}
                       </div>
                       <div className="text-slate-500 flex">
-                        <span className="w-12 shrink-0">NIS</span>
+                        <span className="w-12 shrink-0">NISN</span>
                         <strong className="text-slate-900 font-mono truncate">
-                          : {selectedStudent.nis}
-                          {selectedStudent.nisn ? ` / ${selectedStudent.nisn}` : ''}
+                          : {selectedStudent.nisn || selectedStudent.nis || '-'}
                         </strong>
                       </div>
                       <div className="text-slate-500 flex">
@@ -1933,7 +1932,7 @@ export const AsasAsatView: React.FC = () => {
                   <div className="px-3 py-2 bg-slate-50 border-t border-slate-200 flex items-end justify-between text-[7.5px] text-slate-500 font-bold">
                     <div>
                       <div className="font-mono text-slate-900 leading-none text-[9px]">||||| | ||| ||||</div>
-                      <div className="text-[6.5px] mt-0.5">NIS: {selectedStudent.nis}</div>
+                      <div className="text-[6.5px] mt-0.5">NISN: {selectedStudent.nisn || selectedStudent.nis || '-'}</div>
                     </div>
                     <div className="text-right">
                       <div className="flex items-center justify-end space-x-1.5 mb-2">
@@ -2187,8 +2186,8 @@ export const AsasAsatView: React.FC = () => {
                             <span className="font-black text-slate-900 uppercase">{student.name}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-slate-500 font-medium">NIS/NISN:</span>
-                            <span className="font-bold text-slate-800">{student.nis || '-'}{student.nisn ? ` / ${student.nisn}` : ''}</span>
+                            <span className="text-slate-500 font-medium">NISN:</span>
+                            <span className="font-bold text-slate-800">{student.nisn || student.nis || '-'}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-slate-500 font-medium">Kelas / Ruang:</span>
