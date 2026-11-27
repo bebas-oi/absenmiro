@@ -1410,8 +1410,8 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
               <td style="font-family:monospace;font-weight:bold;width:135px;text-align:center;font-size:11.5px;">${prefix}-${classCode}-${String(idx + 1).padStart(3, '0')}</td>
               <td style="font-family:monospace;width:105px;text-align:center;font-size:11.5px;">${escapeHtml(st.nisn || st.nis || '-')}</td>
               <td style="font-weight:bold;text-transform:uppercase;font-size:11.5px;">${escapeHtml(st.name)}</td>
-              <td style="height:56px;width:120px;font-size:10.5px;">${idx % 2 === 0 ? `${idx + 1}. .............` : ''}</td>
-              <td style="height:56px;width:120px;font-size:10.5px;">${idx % 2 === 1 ? `${idx + 1}. .............` : ''}</td>
+              <td style="height:72px;width:120px;font-size:10.5px;">${idx % 2 === 0 ? `${idx + 1}. .............` : ''}</td>
+              <td style="height:72px;width:120px;font-size:10.5px;">${idx % 2 === 1 ? `${idx + 1}. .............` : ''}</td>
             </tr>
           `
             )
@@ -1479,18 +1479,15 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
     const n = subjects.length;
     const m = classStudents.length;
 
-    const isDenseRows = m > 20;
     const pageMarginV = 4;
     const pageMarginH = 8;
-    const signSpaceH = isDenseRows ? 26 : 32;
+    const signSpaceH = 56;
 
     // F4 Landscape = 330mm x 215mm
-    const availableTbodyPx = isDenseRows ? 430 : 390;
-    const rowH = Math.max(12, Math.min(36, Math.floor(availableTbodyPx / m)));
-
+const rowH = 40;
     const studentFs =
       m <= 12 ? '13px' : m <= 16 ? '12px' : m <= 20 ? '11px' : m <= 25 ? '10.5px' : '10px';
-    const rowPadV = m <= 16 ? '2px' : '1px';
+const rowPadV = '8px';
     const subjHeaderDateFs = n <= 10 ? '10px' : n <= 14 ? '9px' : '8.5px';
     const subjHeaderNameFs = n <= 10 ? '10.5px' : n <= 14 ? '9.5px' : '8.8px';
 
@@ -1558,18 +1555,17 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
             flex-direction: column;
             justify-content: space-between;
             overflow: hidden;
-            page-break-inside: avoid;
-            break-inside: avoid;
-          }
+            
           @media print {
             body { background: #ffffff !important; }
             .f4-landscape-page {
               width: 314mm;
-              height: ${215 - pageMarginV * 2}mm;
+              display: block;
+              height: auto;
               margin: 0;
               padding: 0;
               box-shadow: none;
-              overflow: hidden;
+              overflow: visible;
             }
           }
           table {
@@ -1578,6 +1574,8 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
             table-layout: fixed;
             margin: 0;
           }
+          thead { display: table-header-group; }
+          tr { page-break-inside: avoid; break-inside: avoid; }
           th {
             background: #065f46 !important;
             color: #ffffff !important;
@@ -1695,8 +1693,8 @@ const handlePrintDaftarHadirSemuaMapel = () => {
           <td style="font-family:monospace;font-weight:bold;width:125px;text-align:center;">${prefix}-${classCode}-${String(idx + 1).padStart(3, '0')}</td>
           <td style="font-family:monospace;width:95px;text-align:center;">${escapeHtml(st.nisn || st.nis || '-')}</td>
           <td style="font-weight:bold;text-transform:uppercase;">${escapeHtml(st.name)}</td>
-          <td style="height:56px;width:120px;font-size:9px;">${idx % 2 === 0 ? `${idx + 1}. .............` : ''}</td>
-          <td style="height:56px;width:120px;font-size:9px;">${idx % 2 === 1 ? `${idx + 1}. .............` : ''}</td>
+          <td style="height:72px;width:120px;font-size:9px;">${idx % 2 === 0 ? `${idx + 1}. .............` : ''}</td>
+          <td style="height:72px;width:120px;font-size:9px;">${idx % 2 === 1 ? `${idx + 1}. .............` : ''}</td>
         </tr>
       `
       )
@@ -2156,8 +2154,8 @@ const handlePrintDaftarHadirSemuaMapel = () => {
               <td style="font-family:monospace;font-weight:bold;">${prefix}-${classCode}-${String(idx + 1).padStart(3, '0')}</td>
               <td style="font-family:monospace;">${escapeHtml(st.nisn || st.nis || '-')}</td>
               <td style="font-weight:bold;text-transform:uppercase;">${escapeHtml(st.name)}</td>
-              <td style="height:24px;">${idx % 2 === 0 ? `${idx + 1}. ..............` : ''}</td>
-              <td style="height:24px;">${idx % 2 === 1 ? `${idx + 1}. ..............` : ''}</td>
+              <td style="height:72px;">${idx % 2 === 0 ? `${idx + 1}. ..............` : ''}</td>
+              <td style="height:72px;">${idx % 2 === 1 ? `${idx + 1}. ..............` : ''}</td>
             </tr>
           `
             )
