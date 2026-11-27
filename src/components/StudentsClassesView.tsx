@@ -898,7 +898,7 @@ export const StudentsClassesView: React.FC = () => {
           </h2>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
             {isGuru
-              ? `Kelola data siswa di kelas ${currentUser?.assignedClass}`
+              ? `Kelola data siswa ${currentUser?.assignedClass}`
               : 'Kelola basis data siswa, nomor RFID, dan rombongan belajar'}
           </p>
         </div>

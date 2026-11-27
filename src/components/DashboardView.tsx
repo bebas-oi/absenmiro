@@ -79,7 +79,7 @@ export const DashboardView: React.FC = () => {
             {isGuru ? (
               <>
                 <GraduationCap className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Wali Kelas {currentUser?.assignedClass}</span>
+                <span>Wali {currentUser?.assignedClass}</span>
               </>
             ) : (
               <>
@@ -96,7 +96,7 @@ export const DashboardView: React.FC = () => {
           </h2>
           <p className="text-sm text-slate-300 mt-2 leading-relaxed font-medium">
             {isGuru
-              ? `Selamat datang, ${currentUser?.name}. Kehadiran kelas ${currentUser?.assignedClass} hari ini tercatat `
+              ? `Selamat datang, ${currentUser?.name}. Kehadiran ${currentUser?.assignedClass} hari ini tercatat `
               : 'Pantau kehadiran siswa secara real-time melalui sensor RFID. Kehadiran hari ini tercatat '}
             <strong className="text-emerald-400 underline font-black">
               {totalHadirAll} dari {totalActiveStudents} Siswa

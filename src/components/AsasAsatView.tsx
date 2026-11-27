@@ -303,7 +303,7 @@ export const AsasAsatView: React.FC = () => {
 
         <div class="title">
           <h3>JADWAL ${examTitleFull}</h3>
-          <p>KELAS ${selectedClass.toUpperCase()} • TAHUN AJARAN ${configDraft.academicYear} • SEMESTER ${configDraft.semester.toUpperCase()}</p>
+          <p>${selectedClass.toUpperCase()} • TAHUN AJARAN ${configDraft.academicYear} • SEMESTER ${configDraft.semester.toUpperCase()}</p>
         </div>
 
         <div class="meta">
@@ -332,7 +332,7 @@ export const AsasAsatView: React.FC = () => {
             <p style="margin:2px 0 0 0; font-weight:bold;">Kepala Madrasah</p>
             <div class="sign-space"></div>
             <p style="margin:0; font-weight:bold; text-decoration:underline;">${settings.headmaster}</p>
-            <p style="margin:2px 0 0 0; font-size:10px;">NIP. ${settings.headmasterNip}</p>
+            <p style="margin:2px 0 0 0; font-size:10px;">NIP. ${examInstruments[examType]?.headmasterNip || settings.headmasterNip}</p>
           </div>
           <div class="sign-box">
             <p style="margin:0;">Rowosari, ${formatLongIndoDate(configDraft.printDate || new Date().toLocaleDateString('en-CA'))}</p>
@@ -366,7 +366,7 @@ export const AsasAsatView: React.FC = () => {
 
   const handlePrintDeskNumbers = () => {
     if (deskStudentsList.length === 0) {
-      showWarningToast(`Tidak ada siswa aktif untuk kelas ${deskClass}.`);
+      showWarningToast(`Tidak ada siswa aktif untuk ${deskClass}.`);
       return;
     }
 
@@ -435,7 +435,7 @@ export const AsasAsatView: React.FC = () => {
 
       pagesHtml.push(`
         <div class="f4-page">
-          <div class="f4-screen-label">Lembar Nomor Meja #${pageNum} dari ${totalPages} &bull; Kelas ${deskClass}</div>
+          <div class="f4-screen-label">Lembar Nomor Meja #${pageNum} dari ${totalPages} &bull; ${deskClass}</div>
           <div class="desk-grid">
             ${chunkCards}
           </div>
@@ -752,7 +752,7 @@ export const AsasAsatView: React.FC = () => {
       const maxRowsPerCol = Math.max(leftScheds.length, rightScheds.length);
       const cardDensityStyle =
         maxRowsPerCol <= 6
-          ? '--sched-fs: 6.5pt; --cell-pad: 0.65mm 0.65mm; --rules-title-fs: 6pt; --rules-fs: 5.5pt;'
+          ? '--sched-fs: 6pt; --cell-pad: 0.65mm 0.5mm; --rules-title-fs: 6pt; --rules-fs: 5.5pt;'
           : maxRowsPerCol <= 8
             ? '--sched-fs: 6pt; --cell-pad: 0.5mm 0.6mm; --rules-title-fs: 5.7pt; --rules-fs: 5.2pt;'
             : maxRowsPerCol <= 10
@@ -763,8 +763,8 @@ export const AsasAsatView: React.FC = () => {
         <table>
           <thead>
             <tr>
-              <th style="width: 29%;">Hari/Tgl</th>
-              <th style="width: 17%;">Jam</th>
+              <th style="width: 42%;">Hari/Tgl</th>
+              <th style="width: 20%;">Jam</th>
               <th>Mapel</th>
             </tr>
           </thead>
@@ -1980,7 +1980,7 @@ export const AsasAsatView: React.FC = () => {
                         const maxPreviewRows = Math.max(leftItems.length, rightItems.length);
                         const tableTextCls =
                           maxPreviewRows <= 6
-                            ? 'text-[8.2px]'
+                            ? 'text-[7.6px]'
                             : maxPreviewRows <= 8
                               ? 'text-[7.6px]'
                               : maxPreviewRows <= 10
@@ -2003,8 +2003,8 @@ export const AsasAsatView: React.FC = () => {
                           <table className={`w-full text-left ${tableTextCls} leading-tight border-collapse table-fixed`}>
                             <thead>
                               <tr className="bg-slate-200 text-slate-800 font-black">
-                                <th className="p-0.5 border border-slate-300 w-[29%]">Hari/Tgl</th>
-                                <th className="p-0.5 border border-slate-300 w-[17%]">Jam</th>
+                                <th className="p-0.5 border border-slate-300 w-[42%]">Hari/Tgl</th>
+                                <th className="p-0.5 border border-slate-300 w-[20%]">Jam</th>
                                 <th className="p-0.5 border border-slate-300">Mapel</th>
                               </tr>
                             </thead>

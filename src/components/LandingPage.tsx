@@ -281,7 +281,7 @@ export const LandingPage: React.FC = () => {
                       <div className="flex items-center justify-center space-x-2.5 text-xs sm:text-sm font-bold text-slate-600 mt-1">
                         <span>NIS: <strong className="text-slate-900 font-sans">{currentScanResult.student.nis}</strong></span>
                         <span className="text-slate-300">•</span>
-                        <span>Kelas: <strong className="text-emerald-700 uppercase">{currentScanResult.student.className}</strong></span>
+                        <span><strong className="text-emerald-700 uppercase">{currentScanResult.student.className}</strong></span>
                       </div>
                     </div>
 
@@ -367,7 +367,7 @@ export const LandingPage: React.FC = () => {
                         {currentScanResult.student.name}
                       </div>
                       <p className="text-xs text-slate-600 font-semibold mt-1">
-                        Kelas <strong className="text-emerald-700">{currentScanResult.student.className}</strong> • Absensi pertama:{' '}
+                        <strong className="text-emerald-700">{currentScanResult.student.className}</strong> • Absensi pertama:{' '}
                         <strong className="text-slate-900 font-sans">{currentScanResult.timeString} WIB</strong>
                       </p>
                     </div>
@@ -460,7 +460,7 @@ export const LandingPage: React.FC = () => {
                         </div>
 
                         <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 mt-0.5">
-                          <span className="text-emerald-700 font-bold">Kelas {rec.className}</span>
+                          <span className="text-emerald-700 font-bold">{rec.className}</span>
                           <span className="font-sans text-slate-700 font-bold">
                             {rec.timeIn || rec.timeOut || '-'} WIB
                           </span>

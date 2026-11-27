@@ -689,7 +689,7 @@ const normalizeSchoolName = (name?: string): string => {
       showSuccessToast(
         matched.role === 'ADMIN'
           ? `Selamat datang, ${matched.name}! Login Admin berhasil.`
-          : `Selamat datang, ${matched.name}! Anda login sebagai Wali Kelas ${matched.assignedClass}.`
+          : `Selamat datang, ${matched.name}! Anda login sebagai Wali ${matched.assignedClass}.`
       );
 
       return { success: true, message: 'Login berhasil', user: userObj };
