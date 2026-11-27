@@ -111,6 +111,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
     skNumber: savedInstrument.skNumber || savedConfig?.skNumber || (examType === 'ASAS' ? '045/MI-RWS/XI/2026' : '089/MI-RWS/V/2027'),
     skDate: savedInstrument.skDate || savedConfig?.skDate || (examType === 'ASAS' ? '2026-11-20' : '2027-05-20'),
     printDate: savedInstrument.printDate || savedConfig?.printDate || new Date().toLocaleDateString('en-CA'),
+    paperSize: savedInstrument.paperSize === 'A4' ? 'F4' : (savedInstrument.paperSize || savedConfig?.paperSize || 'F4'),
   }));
   const [innerMode, setInnerMode] = useState<'instrument' | 'submenu'>('instrument');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
@@ -138,10 +139,13 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
       committeeChairNip: inst.committeeChairNip || cfg?.committeeChairNip || '',
       skNumber: inst.skNumber || cfg?.skNumber || (examType === 'ASAS' ? '045/MI-RWS/XI/2026' : '089/MI-RWS/V/2027'),
       skDate: inst.skDate || cfg?.skDate || (examType === 'ASAS' ? '2026-11-20' : '2027-05-20'),
-
-        printDate: inst.printDate || cfg?.printDate || new Date().toLocaleDateString('en-CA'),
+      printDate: inst.printDate || cfg?.printDate || new Date().toLocaleDateString('en-CA'),
+      paperSize: inst.paperSize === 'A4' ? 'F4' : (inst.paperSize || cfg?.paperSize || 'F4'),
     });
-    setSelectedChecklistId(inst.checklist[0]?.id || 'chk-1');
+    setSelectedChecklistId((prev) => {
+      if (inst.checklist.some((c) => c.id === prev)) return prev;
+      return inst.checklist[0]?.id || 'chk-1';
+    });
   }, [examType, examInstruments, examConfigs]);
 
   // Unique subjects from schedule for current examType + any subjectOverrides
@@ -594,9 +598,9 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
     }
 
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const isF4 = draft.paperSize === 'F4';
-    const pageW = isF4 ? '215mm' : '210mm';
-    const pageH = isF4 ? '330mm' : '297mm';
+    const isF4 = true;
+    const pageW = '215mm';
+    const pageH = '330mm';
 
     const pagesHtml = subjectsToPrint
       .map((subj) => buildSingleInstrumentPageHtml(subj, origin))
@@ -810,6 +814,10 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
 
   const printSubMenuDocument = (title: string, bodyHtml: string, landscape = false) => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const pageW = landscape ? '330mm' : '215mm';
+    const pageH = landscape ? '215mm' : '330mm';
+    const containerW = landscape ? '314mm' : '191mm';
+    const containerMinH = landscape ? '199mm' : '306mm';
     const html = `
       <!DOCTYPE html>
       <html>
@@ -817,9 +825,24 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
         <base href="${origin}/" />
         <title>${escapeHtml(title)}</title>
         <style>
-          @page { size: A4 ${landscape ? 'landscape' : 'portrait'}; margin: ${landscape ? '10mm' : '14mm'}; }
+          @page { size: ${pageW} ${pageH} ${landscape ? 'landscape' : 'portrait'}; margin: ${landscape ? '8mm' : '12mm'}; }
           *, *::before, *::after { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; }
-          body { font-family: Arial, Helvetica, sans-serif; color: #0f172a; font-size: 11px; margin: 0; padding: 0; }
+          body { font-family: Arial, Helvetica, sans-serif; color: #0f172a; font-size: 11px; margin: 0; padding: 0; background: #e2e8f0; }
+          .sub-doc-page {
+            width: ${containerW};
+            min-height: ${containerMinH};
+            margin: 14px auto;
+            padding: 8mm 10mm;
+            background: #ffffff;
+            box-shadow: 0 4px 18px rgba(15, 23, 42, 0.12);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+          }
+          @media print {
+            body { background: #ffffff !important; }
+            .sub-doc-page { width: ${containerW}; min-height: 100vh; margin: 0; padding: 0; box-shadow: none; }
+          }
           table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
           th { background: #065f46 !important; color: #ffffff !important; padding: 7px 6px; border: 1px solid #065f46; font-size: 10px; text-transform: uppercase; }
           td { padding: 6px; border: 1px solid #cbd5e1; font-size: 10.5px; }
@@ -830,8 +853,12 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
         </style>
       </head>
       <body>
-        ${buildMadrasahKopHtml(origin, title, true)}
-        ${bodyHtml}
+        <div class="sub-doc-page">
+          <div>
+            ${buildMadrasahKopHtml(origin, title, true)}
+            ${bodyHtml}
+          </div>
+        </div>
       </body>
       </html>
     `;
@@ -892,7 +919,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
         <base href="${origin}/" />
         <title>SK Panitia ${examType} - ${escapeHtml(schoolDisplay)}</title>
         <style>
-          @page { size: A4 portrait; margin: 10mm; }
+          @page { size: 215mm 330mm portrait; margin: 10mm; }
           *, *::before, *::after {
             box-sizing: border-box;
             -webkit-print-color-adjust: exact !important;
@@ -909,16 +936,21 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
             background: #e2e8f0;
           }
           .sk-page {
-            width: 210mm;
+            width: 195mm;
+            min-height: 310mm;
             margin: 12px auto;
             padding: 10mm;
             background: #ffffff;
             box-shadow: 0 4px 18px rgba(15, 23, 42, 0.12);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
           }
           @media print {
             body { background: #ffffff !important; }
             .sk-page {
               width: 100%;
+              min-height: 100vh;
               margin: 0;
               padding: 0;
               box-shadow: none;
@@ -1279,7 +1311,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
         <title>${escapeHtml(title)}</title>
         <style>
           @page {
-            size: A4 portrait;
+            size: 215mm 330mm portrait;
             margin: 12mm 14mm;
           }
           *, *::before, *::after {
@@ -1297,10 +1329,10 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
             background: #e2e8f0;
           }
           .sub-doc-page {
-            width: 182mm;
-            min-height: 272mm;
+            width: 187mm;
+            min-height: 306mm;
             margin: 14px auto;
-            padding: 4mm 6mm;
+            padding: 6mm 8mm;
             background: #ffffff;
             box-shadow: 0 4px 18px rgba(15, 23, 42, 0.12);
             display: flex;
@@ -1440,29 +1472,33 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
     }
     const chairName = examConfigs[examType]?.committeeChair || draft.committeeChair || 'Ahmad Mustofa, S.Pd';
     const chairNip = examConfigs[examType]?.committeeChairNip || draft.committeeChairNip || '';
+    const headmasterDisplay = draft.headmasterName || settings.headmaster || 'H. Ahmad Muzakki, M.Pd.I';
+    const headmasterNipDisplay = draft.headmasterNip || settings.headmasterNip || '';
+    const headmasterTitleDisplay = draft.headmasterTitle || 'Kepala Madrasah';
+
     const n = subjects.length;
     const m = classStudents.length;
 
     const isDenseRows = m > 20;
-    const pageMarginV = isDenseRows ? 5 : 7;
-    const pageMarginH = 9;
-    const signSpaceH = isDenseRows ? 36 : 46;
+    const pageMarginV = 4;
+    const pageMarginH = 8;
+    const signSpaceH = isDenseRows ? 26 : 32;
 
-    // F4 Landscape = 330mm x 215mm (~774px usable height at 5mm margin)
-    const availableTbodyPx = isDenseRows ? 430 : 385;
-    const rowH = Math.max(13, Math.min(44, Math.floor(availableTbodyPx / m)));
+    // F4 Landscape = 330mm x 215mm
+    const availableTbodyPx = isDenseRows ? 430 : 390;
+    const rowH = Math.max(12, Math.min(36, Math.floor(availableTbodyPx / m)));
 
     const studentFs =
-      m <= 12 ? '13.5px' : m <= 16 ? '12.5px' : m <= 20 ? '11.5px' : m <= 25 ? '11px' : '10px';
-    const rowPadV = m <= 16 ? '3px' : m <= 22 ? '2px' : '1px';
-    const subjHeaderDateFs = n <= 10 ? '10.5px' : n <= 14 ? '9.5px' : '8.8px';
-    const subjHeaderNameFs = n <= 10 ? '11px' : n <= 14 ? '10px' : '9.2px';
+      m <= 12 ? '13px' : m <= 16 ? '12px' : m <= 20 ? '11px' : m <= 25 ? '10.5px' : '10px';
+    const rowPadV = m <= 16 ? '2px' : '1px';
+    const subjHeaderDateFs = n <= 10 ? '10px' : n <= 14 ? '9px' : '8.5px';
+    const subjHeaderNameFs = n <= 10 ? '10.5px' : n <= 14 ? '9.5px' : '8.8px';
 
     const headCells = subjects
       .map((sj) => {
         const d = sj.date ? formatDMY(sj.date) : sj.dayDate;
         const day = (sj.dayDate || '').split(',')[0].slice(0, 3);
-        return `<th style="font-size:${subjHeaderDateFs};padding:4px 2px;text-align:center;line-height:1.18;vertical-align:middle;">
+        return `<th style="font-size:${subjHeaderDateFs};padding:3px 2px;text-align:center;line-height:1.15;vertical-align:middle;">
           <div>${escapeHtml(day)}</div>
           <div style="font-weight:700;margin:1px 0;">${escapeHtml(d)}</div>
           <div style="font-size:${subjHeaderNameFs};font-weight:800;word-break:break-word;">${escapeHtml(sj.subject)}</div>
@@ -1477,7 +1513,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
           cells += `<td style="height:${rowH}px;padding:0 2px;"></td>`;
         }
         return `<tr>
-          <td style="text-align:center;font-size:${studentFs};font-weight:700;padding:${rowPadV} 3px;height:${rowH}px;">${idx + 1}</td>
+          <td style="text-align:center;font-size:${studentFs};font-weight:700;padding:${rowPadV} 2px;height:${rowH}px;">${idx + 1}</td>
           <td style="font-weight:800;text-transform:uppercase;font-size:${studentFs};padding:${rowPadV} 6px;height:${rowH}px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(st.name)}</td>
           ${cells}
         </tr>`;
@@ -1522,12 +1558,14 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
             flex-direction: column;
             justify-content: space-between;
             overflow: hidden;
+            page-break-inside: avoid;
+            break-inside: avoid;
           }
           @media print {
             body { background: #ffffff !important; }
             .f4-landscape-page {
-              width: 100%;
-              height: ${215 - pageMarginV * 2 - 2}mm;
+              width: 314mm;
+              height: ${215 - pageMarginV * 2}mm;
               margin: 0;
               padding: 0;
               box-shadow: none;
@@ -1554,18 +1592,19 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
             background: #f8fafc !important;
           }
           .signs-wrap {
-            margin-top: 6px;
+            margin-top: 4px;
             page-break-inside: avoid;
+            break-inside: avoid;
           }
           .signs {
             display: flex;
             justify-content: space-between;
-            padding: 0 36px;
-            font-size: 12px;
+            padding: 0 32px;
+            font-size: 11.5px;
           }
           .sign-box {
             text-align: center;
-            width: 260px;
+            width: 250px;
           }
           .sign-space {
             height: ${signSpaceH}px;
@@ -1576,26 +1615,26 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
         <div class="f4-landscape-page">
           <div>
             ${buildOfficialKopHtml(origin, { compact: true })}
-            <div style="text-align:center;margin:2px 0 6px 0;">
-              <h3 style="margin:0;font-size:16px;font-weight:800;text-transform:uppercase;text-decoration:underline;letter-spacing:0.3px;">DAFTAR HADIR PESERTA ${examType} &bull; ${escapeHtml(subMenuClass.toUpperCase())}</h3>
-              <p style="margin:2px 0 0 0;font-size:12px;font-weight:700;color:#047857;">${examType} &bull; ${escapeHtml(examConfigs[examType].semester)} &bull; ${escapeHtml(draft.academicYearLabel)}</p>
+            <div style="text-align:center;margin:1px 0 4px 0;">
+              <h3 style="margin:0;font-size:15px;font-weight:800;text-transform:uppercase;text-decoration:underline;letter-spacing:0.3px;">DAFTAR HADIR PESERTA ${examType} &bull; ${escapeHtml(subMenuClass.toUpperCase())}</h3>
+              <p style="margin:1px 0 0 0;font-size:11px;font-weight:700;color:#047857;">${examType} &bull; ${escapeHtml(examConfigs[examType].semester)} &bull; ${escapeHtml(draft.academicYearLabel)}</p>
             </div>
-            <div style="display:flex;justify-content:space-between;align-items:center;background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:5px 12px;margin-bottom:6px;font-size:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:4px 10px;margin-bottom:4px;font-size:11px;">
               <div><strong>Kelas / Ruang:</strong> ${escapeHtml(subMenuClass)}</div>
               <div><strong>Waktu Pelaksanaan:</strong> ${escapeHtml(draft.periodLabel || '-')}</div>
               <div><strong>Jumlah Siswa:</strong> ${m} &nbsp;&bull;&nbsp; <strong>Jumlah Sesi/Mapel:</strong> ${n}</div>
             </div>
             <table>
               <colgroup>
-                <col style="width:9mm;" />
-                <col style="width:65mm;" />
-                <col span="${n}" style="width:calc((100% - 74mm) / ${n});" />
+                <col style="width:8mm;" />
+                <col style="width:62mm;" />
+                <col span="${n}" style="width:calc((100% - 70mm) / ${n});" />
               </colgroup>
               <thead>
                 <tr>
-                  <th rowspan="2" style="font-size:12px;padding:4px 2px;">No</th>
-                  <th rowspan="2" style="font-size:12px;padding:4px 6px;">Nama Peserta Didik</th>
-                  <th colspan="${n}" style="font-size:11.5px;padding:4px 6px;letter-spacing:0.4px;">Kehadiran / Tanda Tangan &mdash; ${escapeHtml(draft.periodLabel || '')}</th>
+                  <th rowspan="2" style="font-size:11px;padding:3px 2px;">No</th>
+                  <th rowspan="2" style="font-size:11px;padding:3px 6px;">Nama Peserta Didik</th>
+                  <th colspan="${n}" style="font-size:11px;padding:3px 6px;letter-spacing:0.3px;">Kehadiran / Tanda Tangan &mdash; ${escapeHtml(draft.periodLabel || '')}</th>
                 </tr>
                 <tr>${headCells}</tr>
               </thead>
@@ -1603,18 +1642,20 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
             </table>
           </div>
           <div class="signs-wrap">
-            <p style="text-align:right;margin:0 36px 3px 0;font-size:12px;font-weight:600;">Rowosari, ${escapeHtml(printDateFormatted)}</p>
+            <p style="text-align:right;margin:0 32px 2px 0;font-size:11.5px;font-weight:600;">Rowosari, ${escapeHtml(printDateFormatted)}</p>
             <div class="signs">
               <div class="sign-box">
-                <p style="margin:0;font-weight:600;">Mengetahui, Ketua Panitia ${examType}</p>
+                <p style="margin:0;font-weight:600;">Mengetahui,</p>
+                <p style="margin:1px 0 0 0;font-weight:600;">${escapeHtml(headmasterTitleDisplay)}</p>
                 <div class="sign-space"></div>
-                <p style="margin:0;font-weight:bold;text-decoration:underline;font-size:12.5px;">${escapeHtml(chairName)}</p>
-                ${chairNip ? `<p style="margin:2px 0 0 0;font-size:11px;">NIP. ${escapeHtml(chairNip)}</p>` : ''}
+                <p style="margin:0;font-weight:bold;text-decoration:underline;font-size:12px;">${escapeHtml(headmasterDisplay)}</p>
+                ${headmasterNipDisplay ? `<p style="margin:1px 0 0 0;font-size:10.5px;">NIP. ${escapeHtml(headmasterNipDisplay)}</p>` : ''}
               </div>
               <div class="sign-box">
-                <p style="margin:0;font-weight:600;">Pengawas Ruang / Wali Kelas,</p>
+                <p style="margin:0;font-weight:600;">Ketua Panitia ${examType},</p>
                 <div class="sign-space"></div>
-                <p style="margin:0;font-weight:bold;text-decoration:underline;font-size:12.5px;">( ........................................ )</p>
+                <p style="margin:0;font-weight:bold;text-decoration:underline;font-size:12px;">${escapeHtml(chairName)}</p>
+                ${chairNip ? `<p style="margin:1px 0 0 0;font-size:10.5px;">NIP. ${escapeHtml(chairNip)}</p>` : ''}
               </div>
             </div>
           </div>
@@ -2098,9 +2139,9 @@ const handlePrintDaftarHadirSemuaMapel = () => {
             .join('')
         : '<tr><td colspan="4" style="text-align:center;padding:8px;">Susunan panitia belum diisi.</td></tr>';
 
-    const classStudents = accessibleStudents.filter(
+    const classStudents = [...accessibleStudents.filter(
       (s) => s.className === subMenuClass && s.status === 'aktif'
-    );
+    )].sort((a, b) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
     const subjData = currentSubjectData;
     const prefix = examConfigs[examType].participantPrefix;
     const classCode = subMenuClass.replace(/[^0-9A-Z]/gi, '').toUpperCase();
@@ -2180,13 +2221,14 @@ const handlePrintDaftarHadirSemuaMapel = () => {
         <base href="${origin}/" />
         <title>Batch Instrumen ${examType} - ${escapeHtml(subMenuClass)}</title>
         <style>
-          @page { size: A4 portrait; margin: 12mm; }
+          @page { size: 215mm 330mm; margin: 12mm; }
           *, *::before, *::after { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; }
           body { font-family: Arial, Helvetica, sans-serif; color: #0f172a; font-size: 11px; margin: 0; padding: 0; }
           .doc-section {
             page-break-after: always;
             break-after: page;
-            min-height: 270mm;
+            min-height: 306mm;
+            width: 191mm;
             display: flex;
             flex-direction: column;
             justify-content: space-between;

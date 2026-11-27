@@ -359,9 +359,9 @@ export const AsasAsatView: React.FC = () => {
   );
 
   const deskStudentsList = useMemo(() => {
-    return accessibleStudents.filter(
+    return [...accessibleStudents.filter(
       (s) => s.className === deskClass && s.status === 'aktif'
-    );
+    )].sort((a, b) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
   }, [accessibleStudents, deskClass]);
 
   const handlePrintDeskNumbers = () => {
@@ -638,15 +638,17 @@ export const AsasAsatView: React.FC = () => {
     accessibleStudents.find((s) => s.id === selectedStudentId) || accessibleStudents[0];
 
   const cardStudentsList = useMemo(() => {
+    let list: Student[] = [];
     if (printMode === 'single') {
-      return selectedStudent ? [selectedStudent] : [];
+      list = selectedStudent ? [selectedStudent] : [];
+    } else if (printMode === 'selected') {
+      list = accessibleStudents.filter((s) => checkedStudentIds.includes(s.id));
+    } else {
+      list = accessibleStudents.filter(
+        (s) => s.className === selectedClassForCard && s.status === 'aktif'
+      );
     }
-    if (printMode === 'selected') {
-      return accessibleStudents.filter((s) => checkedStudentIds.includes(s.id));
-    }
-    return accessibleStudents.filter(
-      (s) => s.className === selectedClassForCard && s.status === 'aktif'
-    );
+    return [...list].sort((a, b) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
   }, [printMode, selectedStudent, accessibleStudents, checkedStudentIds, selectedClassForCard]);
 
   const getParticipantNumber = (student: Student, idx: number) => {
