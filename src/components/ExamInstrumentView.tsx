@@ -1575,7 +1575,6 @@ const rowPadV = '8px';
             margin: 0;
           }
           thead { display: table-header-group; }
-          tr { page-break-inside: avoid; break-inside: avoid; }
           th {
             background: #065f46 !important;
             color: #ffffff !important;
