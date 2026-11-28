@@ -12,7 +12,9 @@ import { UserManagementView } from './components/UserManagementView';
 import { AttendanceReportsView } from './components/AttendanceReportsView';
 import { StudentCardPrintView } from './components/StudentCardPrintView';
 import { AsasAsatView } from './components/AsasAsatView';
+import { KatrolNilaiView } from './components/KatrolNilaiView';
 import { SettingsScheduleView } from './components/SettingsScheduleView';
+import { AchievementsView } from './components/AchievementsView';
 
 const MainLayout: React.FC = () => {
   const { viewMode, isAdminLoggedIn, isGuru, activeTab } = useApp();
@@ -48,6 +50,8 @@ const MainLayout: React.FC = () => {
           {activeTab === 'reports' && <AttendanceReportsView />}
           {activeTab === 'cards' && <StudentCardPrintView />}
           {activeTab === 'exam' && <AsasAsatView />}
+          {activeTab === 'katrol' && <KatrolNilaiView />}
+          {activeTab === 'achievements' && <AchievementsView />}
           {activeTab === 'settings' && !isGuru && <SettingsScheduleView />}
           {activeTab === 'settings' && isGuru && <DashboardView />}
           {activeTab === 'kiosk' && <KioskScanner />}

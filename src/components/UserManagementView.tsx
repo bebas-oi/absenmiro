@@ -48,7 +48,10 @@ export const UserManagementView: React.FC = () => {
     password: '',
     name: '',
     role: 'GURU' as UserRole,
+    guruMode: 'wali' as 'wali' | 'mapel',
     assignedClass: classes[0]?.name || 'Kelas 1A',
+    assignedClasses: [] as string[],
+    assignedSubject: '',
     email: '',
     phone: '',
     status: 'AKTIF' as 'AKTIF' | 'NONAKTIF',
@@ -60,6 +63,15 @@ export const UserManagementView: React.FC = () => {
   const [newPassword, setNewPassword] = useState('guru123');
   const [isCopied, setIsCopied] = useState(false);
 
+  const getClassesByGradeRange = (minGrade: number, maxGrade: number) =>
+    classes
+      .filter((c) => {
+        const m = c.name.match(/\d+/);
+        const g = m ? parseInt(m[0], 10) : Number(c.grade) || 0;
+        return g >= minGrade && g <= maxGrade;
+      })
+      .map((c) => c.name);
+
   const handleOpenAdd = () => {
     setEditingUser(null);
     setFormData({
@@ -67,7 +79,10 @@ export const UserManagementView: React.FC = () => {
       password: '',
       name: '',
       role: 'GURU',
+      guruMode: 'wali',
       assignedClass: classes[0]?.name || 'Kelas 1A',
+      assignedClasses: classes[0]?.name ? [classes[0].name] : [],
+      assignedSubject: '',
       email: '',
       phone: '',
       status: 'AKTIF',
@@ -77,12 +92,30 @@ export const UserManagementView: React.FC = () => {
 
   const handleOpenEdit = (u: UserAccount) => {
     setEditingUser(u);
+    const isMapel =
+      Boolean(u.assignedSubject) ||
+      (u.assignedClasses && u.assignedClasses.length > 1) ||
+      u.assignedClass === 'Kelas 1-6' ||
+      u.assignedClass === 'Kelas 4-6';
+    const initialMulti =
+      u.assignedClass === 'Kelas 1-6'
+        ? getClassesByGradeRange(1, 6)
+        : u.assignedClass === 'Kelas 4-6'
+          ? getClassesByGradeRange(4, 6)
+          : u.assignedClasses && u.assignedClasses.length > 0
+            ? u.assignedClasses
+            : u.assignedClass
+              ? [u.assignedClass]
+              : [];
     setFormData({
       username: u.username,
       password: u.password || '',
       name: u.name,
       role: u.role,
+      guruMode: isMapel ? 'mapel' : 'wali',
       assignedClass: u.assignedClass || classes[0]?.name || 'Kelas 1A',
+      assignedClasses: initialMulti,
+      assignedSubject: u.assignedSubject || '',
       email: u.email || '',
       phone: u.phone || '',
       status: u.status,
@@ -97,6 +130,20 @@ export const UserManagementView: React.FC = () => {
     setIsResetModalOpen(true);
   };
 
+  const handleToggleMultiClass = (clsName: string) => {
+    setFormData((prev) => {
+      const exists = prev.assignedClasses.includes(clsName);
+      const next = exists
+        ? prev.assignedClasses.filter((c) => c !== clsName)
+        : [...prev.assignedClasses, clsName];
+      return {
+        ...prev,
+        assignedClasses: next,
+        assignedClass: next.length === classes.length ? 'Kelas 1-6' : next.join(', '),
+      };
+    });
+  };
+
   const handleSaveUser = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.username.trim() || !formData.name.trim()) {
@@ -109,13 +156,39 @@ export const UserManagementView: React.FC = () => {
       return;
     }
 
+    if (formData.role === 'GURU' && formData.guruMode === 'mapel' && formData.assignedClasses.length === 0) {
+      showWarningToast('Pilih minimal 1 kelas ajar untuk Guru Mapel!');
+      return;
+    }
+
+    const resolvedAssignedClass =
+      formData.role !== 'GURU'
+        ? undefined
+        : formData.guruMode === 'mapel'
+          ? formData.assignedClass || formData.assignedClasses.join(', ')
+          : formData.assignedClass;
+
+    const resolvedAssignedClasses =
+      formData.role === 'GURU' && formData.guruMode === 'mapel'
+        ? formData.assignedClasses
+        : formData.role === 'GURU'
+          ? [formData.assignedClass]
+          : undefined;
+
+    const resolvedAssignedSubject =
+      formData.role === 'GURU' && formData.guruMode === 'mapel'
+        ? formData.assignedSubject.trim() || undefined
+        : undefined;
+
     if (editingUser) {
       updateUser({
         ...editingUser,
         username: formData.username.trim().toLowerCase(),
         name: formData.name.trim(),
         role: formData.role,
-        assignedClass: formData.role === 'GURU' ? formData.assignedClass : undefined,
+        assignedClass: resolvedAssignedClass,
+        assignedClasses: resolvedAssignedClasses,
+        assignedSubject: resolvedAssignedSubject,
         email: formData.email.trim(),
         phone: formData.phone.trim(),
         status: formData.status,
@@ -128,7 +201,9 @@ export const UserManagementView: React.FC = () => {
         password: formData.password.trim(),
         name: formData.name.trim(),
         role: formData.role,
-        assignedClass: formData.role === 'GURU' ? formData.assignedClass : undefined,
+        assignedClass: resolvedAssignedClass,
+        assignedClasses: resolvedAssignedClasses,
+        assignedSubject: resolvedAssignedSubject,
         email: formData.email.trim(),
         phone: formData.phone.trim(),
         status: formData.status,
@@ -349,19 +424,32 @@ export const UserManagementView: React.FC = () => {
                           className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
                             u.role === 'ADMIN'
                               ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                              : 'bg-blue-100 text-blue-900 border border-blue-300'
+                              : u.assignedSubject
+                                ? 'bg-indigo-100 text-indigo-900 border border-indigo-300'
+                                : 'bg-blue-100 text-blue-900 border border-blue-300'
                           }`}
                         >
-                          {u.role === 'ADMIN' ? 'SUPER ADMIN' : 'GURU WALI KELAS'}
+                          {u.role === 'ADMIN'
+                            ? 'SUPER ADMIN'
+                            : u.assignedSubject
+                              ? `GURU ${u.assignedSubject}`
+                              : 'GURU WALI KELAS'}
                         </span>
                       </td>
 
                       {/* Assigned Class */}
                       <td className="py-3.5 px-4">
                         {u.role === 'GURU' ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 font-black uppercase text-[11px]">
-                            {u.assignedClass || '-'}
-                          </span>
+                          <div className="space-y-1">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 font-black uppercase text-[11px]">
+                              {u.assignedClass || '-'}
+                            </span>
+                            {u.assignedClasses && u.assignedClasses.length > 1 && (
+                              <div className="text-[10px] text-slate-500 font-semibold">
+                                {u.assignedClasses.length} Rombel
+                              </div>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-slate-400 text-xs font-bold">Semua Kelas (Full)</span>
                         )}
@@ -433,8 +521,8 @@ export const UserManagementView: React.FC = () => {
             if (e.target === e.currentTarget) setIsFormModalOpen(false);
           }}
         >
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200">
-            <div className="bg-gradient-to-br from-emerald-700 to-slate-900 p-5 text-white flex items-center justify-between">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden border border-slate-200">
+            <div className="bg-gradient-to-br from-emerald-700 to-slate-900 p-5 text-white flex items-center justify-between shrink-0">
               <div>
                 <span className="text-[10px] font-black text-emerald-300 uppercase tracking-widest">
                   Formulir Pengguna
@@ -451,7 +539,7 @@ export const UserManagementView: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSaveUser} className="p-6 space-y-4 text-xs font-bold text-slate-700">
+            <form onSubmit={handleSaveUser} className="p-6 space-y-4 text-xs font-bold text-slate-700 overflow-y-auto flex-1">
               {/* Role Selection */}
               <div className="space-y-1.5">
                 <label className="block uppercase tracking-wider">
@@ -539,21 +627,129 @@ export const UserManagementView: React.FC = () => {
 
               {/* Assigned Class (if GURU) */}
               {formData.role === 'GURU' && (
-                <div className="space-y-1">
-                  <label className="block uppercase tracking-wider">
-                    5. Rombongan Belajar (Wali Kelas) <span className="text-rose-600">*</span>
-                  </label>
-                  <select
-                    value={formData.assignedClass}
-                    onChange={(e) => setFormData({ ...formData, assignedClass: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:bg-white focus:outline-hidden focus:border-emerald-600 cursor-pointer"
-                  >
-                    {classes.map((c) => (
-                      <option key={c.id} value={c.name}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                <div className="space-y-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="block uppercase tracking-wider text-slate-800">
+                      5. Tipe & Akses Rombel Guru <span className="text-rose-600">*</span>
+                    </label>
+                    <div className="flex items-center bg-white rounded-xl p-0.5 border border-slate-200 text-[10px] font-black uppercase">
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, guruMode: 'wali' })}
+                        className={`px-2.5 py-1 rounded-lg cursor-pointer ${
+                          formData.guruMode === 'wali'
+                            ? 'bg-emerald-600 text-white'
+                            : 'text-slate-600'
+                        }`}
+                      >
+                        Wali Kelas
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, guruMode: 'mapel' })}
+                        className={`px-2.5 py-1 rounded-lg cursor-pointer ${
+                          formData.guruMode === 'mapel'
+                            ? 'bg-indigo-600 text-white'
+                            : 'text-slate-600'
+                        }`}
+                      >
+                        Guru Mapel (Multi-Kelas)
+                      </button>
+                    </div>
+                  </div>
+
+                  {formData.guruMode === 'wali' ? (
+                    <select
+                      value={formData.assignedClass}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          assignedClass: e.target.value,
+                          assignedClasses: [e.target.value],
+                        })
+                      }
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-hidden focus:border-emerald-600 cursor-pointer"
+                    >
+                      {classes.map((c) => (
+                        <option key={c.id} value={c.name}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="space-y-2.5">
+                      <div>
+                        <label className="block text-[10px] uppercase tracking-wider text-slate-600 mb-1">
+                          Mata Pelajaran Diampu
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Contoh: PJOK atau TIK Komputer"
+                          value={formData.assignedSubject}
+                          onChange={(e) =>
+                            setFormData({ ...formData, assignedSubject: e.target.value })
+                          }
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900"
+                        />
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const list = getClassesByGradeRange(1, 6);
+                            setFormData({
+                              ...formData,
+                              assignedSubject: formData.assignedSubject || 'PJOK',
+                              assignedClass: 'Kelas 1-6',
+                              assignedClasses: list,
+                            });
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-900 text-[10px] font-black uppercase cursor-pointer"
+                        >
+                          Semua Kelas 1–6 (PJOK)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const list = getClassesByGradeRange(4, 6);
+                            setFormData({
+                              ...formData,
+                              assignedSubject: formData.assignedSubject || 'TIK Komputer',
+                              assignedClass: 'Kelas 4-6',
+                              assignedClasses: list,
+                            });
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-indigo-100 hover:bg-indigo-200 text-indigo-900 text-[10px] font-black uppercase cursor-pointer"
+                        >
+                          Kelas 4–6 (TIK Komputer)
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pt-1">
+                        {classes.map((c) => {
+                          const checked = formData.assignedClasses.includes(c.name);
+                          return (
+                            <label
+                              key={c.id}
+                              className={`flex items-center space-x-2 px-2.5 py-1.5 rounded-xl border text-[11px] cursor-pointer ${
+                                checked
+                                  ? 'bg-emerald-50 border-emerald-400 text-emerald-950 font-black'
+                                  : 'bg-white border-slate-200 text-slate-600'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => handleToggleMultiClass(c.name)}
+                              />
+                              <span className="truncate">{c.name}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

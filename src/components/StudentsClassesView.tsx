@@ -60,7 +60,7 @@ export const StudentsClassesView: React.FC = () => {
   // Student Filters
   const [studentSearch, setStudentSearch] = useState('');
   const [selectedClassFilter, setSelectedClassFilter] = useState(
-    isGuru && currentUser?.assignedClass ? currentUser.assignedClass : 'all'
+    isGuru && accessibleClasses.length === 1 ? accessibleClasses[0].name : 'all'
   );
 
   // Checkbox multi-select state for students
@@ -101,8 +101,8 @@ export const StudentsClassesView: React.FC = () => {
   }
   const [isBulkPhotoModalOpen, setIsBulkPhotoModalOpen] = useState(false);
   const [bulkPhotoClass, setBulkPhotoClass] = useState<string>(
-    isGuru && currentUser?.assignedClass
-      ? currentUser.assignedClass
+    isGuru && accessibleClasses.length === 1
+      ? accessibleClasses[0].name
       : accessibleClasses[0]?.name || 'all'
   );
   const [isProcessingPhotos, setIsProcessingPhotos] = useState(false);
@@ -152,7 +152,7 @@ export const StudentsClassesView: React.FC = () => {
       nis: '',
       name: '',
       rfidUid: '',
-      className: isGuru && currentUser?.assignedClass ? currentUser.assignedClass : accessibleClasses[0]?.name || 'Kelas 1A',
+      className: accessibleClasses[0]?.name || 'Kelas 1A',
       gender: 'L',
       parentName: '',
       parentPhone: '',
@@ -796,8 +796,8 @@ export const StudentsClassesView: React.FC = () => {
 
   const handleOpenBulkPhotoModal = () => {
     const initialClass =
-      isGuru && currentUser?.assignedClass
-        ? currentUser.assignedClass
+      isGuru && accessibleClasses.length === 1
+        ? accessibleClasses[0].name
         : selectedClassFilter !== 'all'
         ? selectedClassFilter
         : accessibleClasses[0]?.name || 'all';
@@ -894,11 +894,13 @@ export const StudentsClassesView: React.FC = () => {
             <span>Manajemen Data Akademik</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-slate-900 uppercase tracking-tight mt-1">
-            {isGuru ? `Data Siswa ${currentUser?.assignedClass}` : 'Data Siswa & Rombel Kelas'}
+            {isGuru
+              ? `Data Siswa ${currentUser?.assignedSubject ? `${currentUser.assignedSubject} (${accessibleClasses.length} Kelas)` : currentUser?.assignedClass || ''}`
+              : 'Data Siswa & Rombel Kelas'}
           </h2>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
             {isGuru
-              ? `Kelola data siswa ${currentUser?.assignedClass}`
+              ? `Kelola data siswa ${currentUser?.assignedSubject ? `mapel ${currentUser.assignedSubject}` : currentUser?.assignedClass || ''}`
               : 'Kelola basis data siswa, nomor RFID, dan rombongan belajar'}
           </p>
         </div>
@@ -955,13 +957,17 @@ export const StudentsClassesView: React.FC = () => {
                 <Filter className="w-4 h-4 text-slate-400 shrink-0" />
                 <select
                   value={selectedClassFilter}
-                  disabled={isGuru}
+                  disabled={isGuru && accessibleClasses.length <= 1}
                   onChange={(e) => setSelectedClassFilter(e.target.value)}
                   className="w-full sm:w-auto px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs sm:text-sm font-bold text-slate-800 focus:bg-white focus:outline-hidden focus:border-emerald-600 cursor-pointer disabled:bg-slate-100 disabled:cursor-not-allowed"
                 >
-                  {!isGuru && <option value="all">Semua Kelas ({students.length})</option>}
+                  {(!isGuru || accessibleClasses.length > 1) && (
+                    <option value="all">
+                      Semua Kelas ({accessibleStudents.length})
+                    </option>
+                  )}
                   {accessibleClasses.map((cls) => {
-                    const count = students.filter((s) => s.className === cls.name).length;
+                    const count = accessibleStudents.filter((s) => s.className === cls.name).length;
                     return (
                       <option key={cls.id} value={cls.name}>
                         {cls.name} ({count} Siswa)
@@ -1449,7 +1455,7 @@ export const StudentsClassesView: React.FC = () => {
                 </label>
                 <select
                   value={studentForm.className}
-                  disabled={isGuru}
+                  disabled={isGuru && accessibleClasses.length <= 1}
                   onChange={(e) => setStudentForm({ ...studentForm, className: e.target.value })}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:bg-white focus:outline-hidden focus:border-emerald-600 cursor-pointer disabled:bg-slate-100 disabled:cursor-not-allowed"
                 >
@@ -1814,11 +1820,11 @@ export const StudentsClassesView: React.FC = () => {
                   </label>
                   <select
                     value={bulkPhotoClass}
-                    disabled={isGuru}
+                    disabled={isGuru && accessibleClasses.length <= 1}
                     onChange={(e) => handleBulkClassChange(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-white border border-blue-300 rounded-xl text-xs font-black text-slate-900 cursor-pointer disabled:bg-slate-100"
                   >
-                    {!isGuru && (
+                    {(!isGuru || accessibleClasses.length > 1) && (
                       <option value="all">Semua Kelas ({accessibleStudents.length} Siswa)</option>
                     )}
                     {accessibleClasses.map((cls) => {

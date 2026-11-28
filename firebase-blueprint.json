@@ -164,6 +164,33 @@
         "supervisorName": { "type": "string" }
       },
       "required": ["examType", "instrumentTitle"]
+    },
+    "grade_katrol": {
+      "title": "GradeKatrolSheet",
+      "description": "Student grade scaling (katrol nilai) records per class, subject, and assessment type",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "className": { "type": "string" },
+        "subject": { "type": "string" },
+        "assessmentType": { "type": "string" },
+        "topicLabel": { "type": "string" },
+        "semester": { "type": "string" },
+        "academicYear": { "type": "string" },
+        "kkm": { "type": "number" },
+        "method": { "type": "string", "enum": ["linear", "kkm_floor", "add_points", "percentage", "sqrt"] },
+        "targetMin": { "type": "number" },
+        "targetMax": { "type": "number" },
+        "addPoints": { "type": "number" },
+        "boostPercent": { "type": "number" },
+        "roundDigits": { "type": "number" },
+        "neverLowerThanRaw": { "type": "boolean" },
+        "teacherName": { "type": "string" },
+        "teacherNip": { "type": "string" },
+        "printDate": { "type": "string" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "className", "subject", "kkm", "method"]
     }
   },
   "firestore": {
@@ -203,6 +230,10 @@
       "exam_instruments": {
         "entity": "exam_instruments",
         "description": "ASAS & ASAT supervision instrument and administration checklists"
+      },
+      "grade_katrol": {
+        "entity": "grade_katrol",
+        "description": "Grade scaling (katrol nilai) sheets per class and subject"
       }
     }
   }

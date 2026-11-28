@@ -401,7 +401,9 @@ export const StudentCardPrintView: React.FC = () => {
             <span>Studio ID Card RFID</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight uppercase mt-1">
-            {isGuru ? `Cetak Kartu Siswa ${currentUser?.assignedClass}` : 'Studio Cetak Kartu Siswa RFID'}
+            {isGuru
+              ? `Cetak Kartu Siswa ${currentUser?.assignedSubject ? `${currentUser.assignedSubject} (${accessibleClasses.length} Kelas)` : currentUser?.assignedClass || ''}`
+              : 'Studio Cetak Kartu Siswa RFID'}
           </h2>
           <p className="text-xs text-slate-500 mt-0.5 font-medium">
             Desain resmi Kartu Pelajar & Presensi RFID MI Islamiyah Rowosari dengan chip sensor dan barcode NIS
@@ -485,7 +487,7 @@ export const StudentCardPrintView: React.FC = () => {
               </label>
               <select
                 value={selectedClassForBatch}
-                disabled={isGuru}
+                disabled={isGuru && accessibleClasses.length <= 1}
                 onChange={(e) => setSelectedClassForBatch(e.target.value)}
                 className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-hidden font-bold disabled:bg-slate-100"
               >

@@ -27,6 +27,8 @@ export const TeachersView: React.FC = () => {
     name: '',
     nip: '',
     assignedClass: '',
+    assignedSubject: '',
+    assignedClasses: [] as string[],
     phone: '',
     email: '',
     gender: 'L' as 'L' | 'P',
@@ -39,6 +41,8 @@ export const TeachersView: React.FC = () => {
       name: '',
       nip: '',
       assignedClass: '',
+      assignedSubject: '',
+      assignedClasses: [],
       phone: '',
       email: '',
       gender: 'L',
@@ -53,6 +57,8 @@ export const TeachersView: React.FC = () => {
       name: t.name,
       nip: t.nip === '-' ? '' : t.nip,
       assignedClass: t.assignedClass || '',
+      assignedSubject: t.assignedSubject || '',
+      assignedClasses: t.assignedClasses || [],
       phone: t.phone,
       email: t.email,
       gender: t.gender || 'L',
@@ -68,13 +74,17 @@ export const TeachersView: React.FC = () => {
       return;
     }
 
-    const payload = {
-      ...form,
+    const cleanSubject = form.assignedSubject.trim();
+    const cleanAssignedClass = form.assignedClass.trim();
+    const payload: Omit<Teacher, 'id'> = {
       name: form.name.trim(),
       nip: form.nip.trim() || '-',
-      assignedClass: form.assignedClass.trim(),
+      assignedClass: cleanAssignedClass,
+      assignedSubject: cleanSubject || undefined,
+      assignedClasses: form.assignedClasses.length > 0 ? form.assignedClasses : undefined,
       phone: form.phone.trim(),
       email: form.email.trim(),
+      gender: form.gender,
       photoUrl: form.photoUrl.trim(),
     };
 
@@ -100,7 +110,9 @@ export const TeachersView: React.FC = () => {
     }
   };
 
-  const getClassOrder = (className: string): number => {
+  const getClassOrder = (t: Teacher): number => {
+    if (t.assignedSubject) return 8000;
+    const className = t.assignedClass || '';
     if (!className) return 9999;
     const idx = classes.findIndex((c) => c.name.toLowerCase() === className.toLowerCase());
     if (idx !== -1) return idx;
@@ -111,20 +123,29 @@ export const TeachersView: React.FC = () => {
 
   const filtered = [...teachers]
     .filter((t) => {
-      if (filterClass === 'non_wali' && t.assignedClass) return false;
-      if (filterClass !== 'all' && filterClass !== 'non_wali' && t.assignedClass !== filterClass) {
-        return false;
+      const isNonWali = Boolean(t.assignedSubject) || !t.assignedClass;
+      if (filterClass === 'non_wali' && !isNonWali) return false;
+      if (filterClass !== 'all' && filterClass !== 'non_wali') {
+        const matchesSingle = t.assignedClass === filterClass;
+        const matchesMulti = t.assignedClasses?.includes(filterClass);
+        const matchesPjok = t.assignedClass?.toLowerCase() === 'kelas 1-6';
+        const matchesTik =
+          t.assignedClass?.toLowerCase() === 'kelas 4-6' && /[456]/.test(filterClass);
+        if (!matchesSingle && !matchesMulti && !matchesPjok && !matchesTik) {
+          return false;
+        }
       }
       const q = search.toLowerCase();
       return (
         t.name.toLowerCase().includes(q) ||
         t.nip.toLowerCase().includes(q) ||
-        (t.assignedClass || '').toLowerCase().includes(q)
+        (t.assignedClass || '').toLowerCase().includes(q) ||
+        (t.assignedSubject || '').toLowerCase().includes(q)
       );
     })
     .sort((a, b) => {
-      const orderA = getClassOrder(a.assignedClass);
-      const orderB = getClassOrder(b.assignedClass);
+      const orderA = getClassOrder(a);
+      const orderB = getClassOrder(b);
       if (orderA !== orderB) return orderA - orderB;
       return a.name.localeCompare(b.name, 'id', { sensitivity: 'base' });
     });
@@ -221,12 +242,18 @@ export const TeachersView: React.FC = () => {
                           </div>
                           <span
                             className={`inline-block mt-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                              t.assignedClass
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-blue-100 text-blue-800'
+                              t.assignedSubject
+                                ? 'bg-indigo-100 text-indigo-800'
+                                : t.assignedClass
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-blue-100 text-blue-800'
                             }`}
                           >
-                            {t.assignedClass ? `Wali ${t.assignedClass}` : 'Guru Mapel / Non-Wali'}
+                            {t.assignedSubject
+                              ? `Guru ${t.assignedSubject} (${t.assignedClass || 'Multi-Kelas'})`
+                              : t.assignedClass
+                                ? `Wali ${t.assignedClass}`
+                                : 'Guru Mapel / Non-Wali'}
                           </span>
                         </div>
                       </div>
@@ -338,27 +365,65 @@ export const TeachersView: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-1">
-                    Tugas / Wali Kelas <span className="text-slate-400 font-semibold">(Opsional)</span>
+                    Tugas / Cakupan Kelas <span className="text-slate-400 font-semibold">(Opsional)</span>
                   </label>
                   <select
                     value={form.assignedClass}
-                    onChange={(e) => setForm({ ...form, assignedClass: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      let nextClasses: string[] = [];
+                      if (val === 'Kelas 1-6') {
+                        nextClasses = classes
+                          .filter((c) => {
+                            const m = c.name.match(/\d+/);
+                            const g = m ? parseInt(m[0], 10) : Number(c.grade);
+                            return g >= 1 && g <= 6;
+                          })
+                          .map((c) => c.name);
+                      } else if (val === 'Kelas 4-6') {
+                        nextClasses = classes
+                          .filter((c) => {
+                            const dm = c.name.match(/\d+/);
+                            const g = dm ? parseInt(dm[0], 10) : Number(c.grade);
+                            return g >= 4 && g <= 6;
+                          })
+                          .map((c) => c.name);
+                      }
+                      setForm({ ...form, assignedClass: val, assignedClasses: nextClasses });
+                    }}
                     className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-hidden font-bold bg-white cursor-pointer"
                   >
                     <option value="">-- Guru Mapel / Non-Wali --</option>
+                    <option value="Kelas 1-6">Semua Kelas 1-6 (Guru Mapel)</option>
+                    <option value="Kelas 4-6">Kelas 4-6 (Guru Mapel)</option>
                     {classes.map((cls) => (
                       <option key={cls.id} value={cls.name}>
                         Wali {cls.name} (Tingkat {cls.grade})
                       </option>
                     ))}
                     {form.assignedClass &&
+                      form.assignedClass !== 'Kelas 1-6' &&
+                      form.assignedClass !== 'Kelas 4-6' &&
                       !classes.some((c) => c.name === form.assignedClass) && (
                         <option value={form.assignedClass}>
-                          {form.assignedClass} (Belum di Menu Rombel)
+                          {form.assignedClass} (Kustom)
                         </option>
                       )}
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-1">
+                  Mata Pelajaran Khusus <span className="text-slate-400 font-semibold">(Opsional, misal: PJOK / TIK Komputer)</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Kosongkan jika Wali Kelas (contoh: PJOK, TIK Komputer)"
+                  value={form.assignedSubject}
+                  onChange={(e) => setForm({ ...form, assignedSubject: e.target.value })}
+                  className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-hidden font-bold"
+                />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

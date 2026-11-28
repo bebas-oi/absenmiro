@@ -143,8 +143,8 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
     savedInstrument.checklist[0]?.id || 'chk-1'
   );
   const [subMenuClass, setSubMenuClass] = useState<string>(
-    isGuru && currentUser?.assignedClass
-      ? currentUser.assignedClass
+    accessibleClasses.some((c) => c.name === currentUser?.assignedClass)
+      ? currentUser!.assignedClass!
       : accessibleClasses[0]?.name || 'Kelas 1A'
   );
   const [baAbsentCount, setBaAbsentCount] = useState<string>('0');
@@ -4512,7 +4512,7 @@ const handlePrintDaftarHadirSemuaMapel = () => {
                     </label>
                     <select
                       value={subMenuClass}
-                      disabled={isGuru}
+                      disabled={isGuru && accessibleClasses.length <= 1}
                       onChange={(e) => setSubMenuClass(e.target.value)}
                       className="w-full px-3 py-2 bg-white border border-emerald-300 rounded-xl font-black text-slate-900 cursor-pointer disabled:bg-slate-100"
                     >

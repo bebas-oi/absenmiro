@@ -10,7 +10,9 @@ export interface AppUser {
   username: string;
   name: string;
   role: UserRole;
-  assignedClass?: string; // e.g. 'Kelas 1A' for GURU / Wali Kelas
+  assignedClass?: string; // e.g. 'Kelas 1A' or 'Kelas 1-6' for GURU
+  assignedClasses?: string[]; // Multi-class access (e.g. Guru PJOK 1-6, TIK Komputer 4-6)
+  assignedSubject?: string; // e.g. 'PJOK', 'TIK Komputer'
   email?: string;
   phone?: string;
   status: 'AKTIF' | 'NONAKTIF';
@@ -65,6 +67,8 @@ export interface Teacher {
   name: string;
   nip: string;
   assignedClass: string;
+  assignedClasses?: string[];
+  assignedSubject?: string;
   phone: string;
   email: string;
   photoUrl?: string;
@@ -297,6 +301,58 @@ export interface ExamInstrumentConfig {
   committeeChairNip?: string;
 }
 
+export type KatrolMethod = 'linear' | 'kkm_floor' | 'add_points' | 'percentage' | 'sqrt';
+
+export interface GradeKatrolEntry {
+  studentId: string;
+  nis: string;
+  nisn?: string;
+  studentName: string;
+  gender: 'L' | 'P';
+  rawScore: number | null;
+  manualOverride?: number | null;
+  finalScore: number | null;
+  note?: string;
+}
+
+export interface GradeKatrolSheet {
+  id: string;
+  className: string;
+  subject: string;
+  assessmentType: string;
+  topicLabel?: string;
+  semester: string;
+  academicYear: string;
+  kkm: number;
+  method: KatrolMethod;
+  targetMin: number;
+  targetMax: number;
+  addPoints: number;
+  boostPercent: number;
+  roundDigits: 0 | 1 | 2;
+  neverLowerThanRaw: boolean;
+  teacherName: string;
+  teacherNip?: string;
+  printDate?: string;
+  entries: GradeKatrolEntry[];
+  updatedAt: number;
+}
+
+export interface SchoolAchievement {
+  id: string;
+  title: string; // e.g. "Juara 1 Lomba MTK Tingkat Kabupaten"
+  category: 'Akademik' | 'Non-Akademik' | 'Keagamaan' | 'Seni & Olahraga' | 'Lainnya';
+  level: 'Madrasah' | 'Kecamatan' | 'Kabupaten' | 'Provinsi' | 'Nasional' | 'Internasional';
+  year: string; // e.g. '2026'
+  studentName: string; // Nama Siswa / Tim
+  className?: string; // e.g. 'Kelas 6A'
+  rank: string; // e.g. 'Juara 1', 'Medali Emas'
+  organizer?: string; // Penyelenggara
+  description?: string;
+  photoUrl?: string;
+  date?: string;
+}
+
 export type ActiveTab = 
   | 'kiosk'
   | 'dashboard'
@@ -306,6 +362,7 @@ export type ActiveTab =
   | 'reports'
   | 'cards'
   | 'exam'
+  | 'katrol'
+  | 'achievements'
   | 'settings';
-
 

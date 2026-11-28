@@ -3,6 +3,7 @@ import {
   doc,
   getDocs,
   getDoc,
+  getDocFromServer,
   setDoc,
   deleteDoc,
   onSnapshot,
@@ -12,7 +13,7 @@ import {
   limit,
   Unsubscribe,
 } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, auth } from '../lib/firebase';
 import {
   AttendanceRecord,
   ClassRoom,
@@ -20,6 +21,7 @@ import {
   ExamMetaConfig,
   ExamScheduleItem,
   ExamType,
+  GradeKatrolSheet,
   SchoolSettings,
   Student,
   Teacher,
@@ -36,6 +38,69 @@ const ATTENDANCE_COLLECTION = 'attendance';
 const EXAM_SCHEDULES_COLLECTION = 'exam_schedules';
 const EXAM_CONFIGS_COLLECTION = 'exam_configs';
 const EXAM_INSTRUMENTS_COLLECTION = 'exam_instruments';
+const GRADE_KATROL_COLLECTION = 'grade_katrol';
+
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+export function handleFirestoreError(
+  error: unknown,
+  operationType: OperationType,
+  path: string | null
+): never {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo:
+        auth.currentUser?.providerData?.map((provider) => ({
+          providerId: provider.providerId,
+          email: provider.email,
+        })) || [],
+    },
+    operationType,
+    path,
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+export async function testFirestoreConnection(): Promise<void> {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error('Please check your Firebase configuration.');
+    }
+  }
+}
 
 // Recursively remove undefined fields so Firestore setDoc / writeBatch.set never fails
 function stripUndefined<T>(value: T): T {
@@ -411,6 +476,54 @@ export async function saveCloudExamInstrument(
     await setDoc(docRef, stripUndefined(instrument), { merge: true });
   } catch (err) {
     console.error('[Firestore] Error saving exam instrument:', err);
+  }
+}
+
+// ==========================================
+// GRADE KATROL (KATROL NILAI)
+// ==========================================
+export function subscribeCloudGradeKatrol(
+  callback: (sheets: GradeKatrolSheet[]) => void,
+  onError?: (err: Error) => void
+): Unsubscribe {
+  const colRef = collection(db, GRADE_KATROL_COLLECTION);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const items: GradeKatrolSheet[] = [];
+      snapshot.forEach((d) => {
+        items.push({ id: d.id, ...(d.data() as Omit<GradeKatrolSheet, 'id'>) });
+      });
+      items.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+      callback(items);
+    },
+    (err) => {
+      try {
+        handleFirestoreError(err, OperationType.GET, GRADE_KATROL_COLLECTION);
+      } catch (wrapped) {
+        onError?.(wrapped instanceof Error ? wrapped : err);
+      }
+    }
+  );
+}
+
+export async function saveCloudGradeKatrol(sheet: GradeKatrolSheet): Promise<void> {
+  const path = `${GRADE_KATROL_COLLECTION}/${sheet.id}`;
+  try {
+    const docRef = doc(db, GRADE_KATROL_COLLECTION, sheet.id);
+    await setDoc(docRef, stripUndefined(sheet));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, path);
+  }
+}
+
+export async function deleteCloudGradeKatrol(id: string): Promise<void> {
+  const path = `${GRADE_KATROL_COLLECTION}/${id}`;
+  try {
+    const docRef = doc(db, GRADE_KATROL_COLLECTION, id);
+    await deleteDoc(docRef);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, path);
   }
 }
 

@@ -113,7 +113,7 @@ export const AttendanceReportsView: React.FC = () => {
   const [endDate, setEndDate] = useState<string>(currentDateString);
 
   const [selectedClass, setSelectedClass] = useState<string>(
-    isGuru && currentUser?.assignedClass ? currentUser.assignedClass : 'all'
+    isGuru && accessibleClasses.length === 1 ? accessibleClasses[0].name : 'all'
   );
   const [selectedStudentFilter, setSelectedStudentFilter] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
@@ -510,7 +510,7 @@ export const AttendanceReportsView: React.FC = () => {
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight uppercase mt-1">
             {isGuru
-              ? `Laporan Presensi ${currentUser?.assignedClass}`
+              ? `Laporan Presensi ${currentUser?.assignedSubject ? `${currentUser.assignedSubject} (${accessibleClasses.length} Kelas)` : currentUser?.assignedClass || ''}`
               : 'Laporan & Rekapitulasi Presensi'}
           </h2>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
@@ -676,14 +676,14 @@ export const AttendanceReportsView: React.FC = () => {
           </label>
           <select
             value={selectedClass}
-            disabled={isGuru}
+            disabled={isGuru && accessibleClasses.length <= 1}
             onChange={(e) => {
               setSelectedClass(e.target.value);
               setSelectedStudentFilter('all');
             }}
             className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs sm:text-sm font-bold text-slate-800 focus:bg-white focus:outline-hidden focus:border-emerald-600 disabled:bg-slate-100 disabled:cursor-not-allowed"
           >
-            {!isGuru && <option value="all">Semua Kelas</option>}
+            {(!isGuru || accessibleClasses.length > 1) && <option value="all">Semua Kelas</option>}
             {accessibleClasses.map((cls) => (
               <option key={cls.id} value={cls.name}>
                 {cls.name}

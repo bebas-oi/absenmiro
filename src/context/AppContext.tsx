@@ -11,8 +11,10 @@ import {
   ExamMetaConfig,
   ExamScheduleItem,
   ExamType,
+  GradeKatrolSheet,
   ScanResultState,
   SchoolSettings,
+  SchoolAchievement,
   Student,
   Teacher,
 } from '../types';
@@ -27,6 +29,7 @@ import {
   initialStudents,
   initialTeachers,
   initialUsers,
+  initialAchievements,
   UserAccount,
 } from '../data/initialData';
 import { playErrorBeep, playSuccessChime, playWarningChime } from '../utils/audio';
@@ -42,6 +45,7 @@ import {
   deleteCloudAttendance,
   deleteCloudClass,
   deleteCloudExamSchedule,
+  deleteCloudGradeKatrol,
   deleteCloudStudent,
   deleteCloudTeacher,
   deleteCloudUser,
@@ -53,6 +57,7 @@ import {
   saveCloudExamConfig,
   saveCloudExamInstrument,
   saveCloudExamSchedule,
+  saveCloudGradeKatrol,
   saveCloudSettings,
   saveCloudStudent,
   saveCloudTeacher,
@@ -61,9 +66,11 @@ import {
   subscribeCloudAttendance,
   subscribeCloudClasses,
   subscribeCloudExamSchedules,
+  subscribeCloudGradeKatrol,
   subscribeCloudStudents,
   subscribeCloudTeachers,
   subscribeCloudUsers,
+  testFirestoreConnection,
 } from '../services/firestoreService';
 import {
   isSupabaseConfigured,
@@ -109,6 +116,70 @@ interface LastScanned {
   type: AttendanceType;
 }
 
+const PRESET_SUBJECT_USER_IDS = new Set(['usr-guru-pjok-1', 'usr-guru-pjok-2', 'usr-guru-tik']);
+const PRESET_SUBJECT_TEACHER_IDS = new Set(['t-pjok-1', 't-pjok-2', 't-tik-1']);
+const MAPEL_USERS_SEED_KEY = 'mi_rowosari_seeded_mapel_users_v1';
+const MAPEL_TEACHERS_SEED_KEY = 'mi_rowosari_seeded_mapel_teachers_v1';
+
+export function getClassGradeNumber(cls: Pick<ClassRoom, 'name' | 'grade'>): number {
+  const name = (cls.name || '').trim();
+  const digitMatch = name.match(/\d+/);
+  if (digitMatch) {
+    return parseInt(digitMatch[0], 10);
+  }
+  const romanMatch = name.match(/\b(XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)\b/i);
+  if (romanMatch) {
+    const romanMap: Record<string, number> = {
+      I: 1,
+      II: 2,
+      III: 3,
+      IV: 4,
+      V: 5,
+      VI: 6,
+      VII: 7,
+      VIII: 8,
+      IX: 9,
+      X: 10,
+      XI: 11,
+      XII: 12,
+    };
+    return romanMap[romanMatch[1].toUpperCase()] ?? 999;
+  }
+  return Number(cls.grade) || 999;
+}
+
+export function getAllowedClassesForUser(
+  user: AppUser | null | undefined,
+  allClasses: ClassRoom[]
+): string[] {
+  if (!user || user.role === 'ADMIN') {
+    return allClasses.map((c) => c.name);
+  }
+  const assignedRange = (user.assignedClass || '').trim().toLowerCase();
+  if (assignedRange === 'kelas 1-6' || assignedRange === 'semua kelas 1-6') {
+    const matched = allClasses
+      .filter((c) => {
+        const g = getClassGradeNumber(c);
+        return g >= 1 && g <= 6;
+      })
+      .map((c) => c.name);
+    return matched.length > 0 ? matched : allClasses.map((c) => c.name);
+  }
+  if (assignedRange === 'kelas 4-6') {
+    const matched = allClasses
+      .filter((c) => {
+        const g = getClassGradeNumber(c);
+        return g >= 4 && g <= 6;
+      })
+      .map((c) => c.name);
+    if (matched.length > 0) return matched;
+  }
+  if (user.assignedClasses && user.assignedClasses.length > 0) {
+    return user.assignedClasses;
+  }
+  return user.assignedClass ? [user.assignedClass] : [];
+}
+
 interface AppContextType {
   viewMode: AppViewMode;
   setViewMode: (mode: AppViewMode) => void;
@@ -139,6 +210,7 @@ interface AppContextType {
   teachers: Teacher[];
   users: UserAccount[];
   attendance: AttendanceRecord[];
+  achievements: SchoolAchievement[];
   settings: SchoolSettings;
 
   // RBAC Access-Controlled Data
@@ -226,6 +298,15 @@ interface AppContextType {
   copyExamSchedulesToClasses: (examType: ExamType, sourceClass: string, targetClasses: string[]) => number;
   updateExamConfig: (examType: ExamType, config: ExamMetaConfig, silent?: boolean) => void;
   updateExamInstrument: (examType: ExamType, instrument: ExamInstrumentConfig, silent?: boolean) => void;
+
+  // Katrol Nilai
+  gradeKatrolSheets: GradeKatrolSheet[];
+  accessibleGradeKatrolSheets: GradeKatrolSheet[];
+  saveGradeKatrolSheet: (sheet: GradeKatrolSheet, silent?: boolean) => Promise<void>;
+  deleteGradeKatrolSheet: (id: string) => Promise<void>;
+  addAchievement: (item: Omit<SchoolAchievement, 'id'>) => SchoolAchievement;
+  updateAchievement: (item: SchoolAchievement) => void;
+  deleteAchievement: (id: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -254,6 +335,7 @@ const STORAGE_KEYS = {
   EXAM_SCHEDULES: 'mi_rowosari_exam_schedules_v1',
   EXAM_CONFIGS: 'mi_rowosari_exam_configs_v1',
   EXAM_INSTRUMENTS: 'mi_rowosari_exam_instruments_v1',
+  GRADE_KATROL: 'mi_rowosari_grade_katrol_v1',
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -377,7 +459,17 @@ const normalizeSchoolName = (name?: string): string => {
   const [teachers, setTeachers] = useState<Teacher[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.TEACHERS);
-      return saved ? JSON.parse(saved) : initialTeachers;
+      const parsed: Teacher[] = saved ? JSON.parse(saved) : initialTeachers;
+      if (!localStorage.getItem(MAPEL_TEACHERS_SEED_KEY)) {
+        const existingIds = new Set(parsed.map((t) => t.id));
+        const missingPresets = initialTeachers.filter(
+          (t) => PRESET_SUBJECT_TEACHER_IDS.has(t.id) && !existingIds.has(t.id)
+        );
+        if (missingPresets.length > 0) {
+          return [...parsed, ...missingPresets];
+        }
+      }
+      return parsed;
     } catch {
       return initialTeachers;
     }
@@ -387,7 +479,17 @@ const normalizeSchoolName = (name?: string): string => {
   const [users, setUsers] = useState<UserAccount[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.USERS);
-      return saved ? JSON.parse(saved) : initialUsers;
+      const parsed: UserAccount[] = saved ? JSON.parse(saved) : initialUsers;
+      if (!localStorage.getItem(MAPEL_USERS_SEED_KEY)) {
+        const existingIds = new Set(parsed.map((u) => u.id));
+        const missingPresets = initialUsers.filter(
+          (u) => PRESET_SUBJECT_USER_IDS.has(u.id) && !existingIds.has(u.id)
+        );
+        if (missingPresets.length > 0) {
+          return [...parsed, ...missingPresets];
+        }
+      }
+      return parsed;
     } catch {
       return initialUsers;
     }
@@ -412,6 +514,24 @@ const normalizeSchoolName = (name?: string): string => {
       return getSampleAttendanceRecords();
     }
   });
+
+  // 6.5 Achievements state
+  const [achievements, setAchievements] = useState<SchoolAchievement[]>(() => {
+    try {
+      const saved = localStorage.getItem('mi_rowosari_achievements_v1');
+      return saved ? JSON.parse(saved) : initialAchievements;
+    } catch {
+      return initialAchievements;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('mi_rowosari_achievements_v1', JSON.stringify(achievements));
+    } catch {
+      // ignore
+    }
+  }, [achievements]);
 
   // 7. ASAS & ASAT Exam Schedules state
   const [examSchedules, setExamSchedules] = useState<ExamScheduleItem[]>(() => {
@@ -446,6 +566,23 @@ const normalizeSchoolName = (name?: string): string => {
       return initialExamInstruments;
     }
   });
+
+  const [gradeKatrolSheets, setGradeKatrolSheets] = useState<GradeKatrolSheet[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.GRADE_KATROL);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.GRADE_KATROL, JSON.stringify(gradeKatrolSheets));
+    } catch {
+      // ignore storage quota errors
+    }
+  }, [gradeKatrolSheets]);
 
   // Cloud Database Status
   const [isCloudConnected, setIsCloudConnected] = useState(true);
@@ -629,12 +766,40 @@ const normalizeSchoolName = (name?: string): string => {
           unsubs.push(unsubClasses);
 
           const unsubTeachers = subscribeCloudTeachers((cloudTeachers) => {
-            if (cloudTeachers && cloudTeachers.length > 0) setTeachers(cloudTeachers);
+            if (cloudTeachers && cloudTeachers.length > 0) {
+              if (!localStorage.getItem(MAPEL_TEACHERS_SEED_KEY)) {
+                const existingIds = new Set(cloudTeachers.map((t) => t.id));
+                const missingPresets = initialTeachers.filter(
+                  (t) => PRESET_SUBJECT_TEACHER_IDS.has(t.id) && !existingIds.has(t.id)
+                );
+                localStorage.setItem(MAPEL_TEACHERS_SEED_KEY, 'true');
+                if (missingPresets.length > 0) {
+                  missingPresets.forEach((t) => saveCloudTeacher(t));
+                  setTeachers([...cloudTeachers, ...missingPresets]);
+                  return;
+                }
+              }
+              setTeachers(cloudTeachers);
+            }
           });
           unsubs.push(unsubTeachers);
 
           const unsubUsers = subscribeCloudUsers((cloudUsers) => {
-            if (cloudUsers && cloudUsers.length > 0) setUsers(cloudUsers);
+            if (cloudUsers && cloudUsers.length > 0) {
+              if (!localStorage.getItem(MAPEL_USERS_SEED_KEY)) {
+                const existingIds = new Set(cloudUsers.map((u) => u.id));
+                const missingPresets = initialUsers.filter(
+                  (u) => PRESET_SUBJECT_USER_IDS.has(u.id) && !existingIds.has(u.id)
+                );
+                localStorage.setItem(MAPEL_USERS_SEED_KEY, 'true');
+                if (missingPresets.length > 0) {
+                  missingPresets.forEach((u) => saveCloudUser(u));
+                  setUsers([...cloudUsers, ...missingPresets]);
+                  return;
+                }
+              }
+              setUsers(cloudUsers);
+            }
           });
           unsubs.push(unsubUsers);
 
@@ -643,10 +808,24 @@ const normalizeSchoolName = (name?: string): string => {
           });
           unsubs.push(unsubAttendance);
 
+          testFirestoreConnection();
+
           const unsubExamSchedules = subscribeCloudExamSchedules((cloudSchedules) => {
             if (cloudSchedules && cloudSchedules.length > 0) setExamSchedules(cloudSchedules);
           });
           unsubs.push(unsubExamSchedules);
+
+          const unsubGradeKatrol = subscribeCloudGradeKatrol(
+            (cloudSheets) => {
+              if (cloudSheets && cloudSheets.length > 0) {
+                setGradeKatrolSheets(cloudSheets);
+              }
+            },
+            (err) => {
+              console.warn('[Firestore] Katrol subscription notice:', err.message);
+            }
+          );
+          unsubs.push(unsubGradeKatrol);
         }
       } catch (err) {
         console.warn('[Cloud Sync] Real-time subscription error:', err);
@@ -691,6 +870,8 @@ const normalizeSchoolName = (name?: string): string => {
         name: matched.name,
         role: matched.role,
         assignedClass: matched.assignedClass,
+        assignedClasses: matched.assignedClasses,
+        assignedSubject: matched.assignedSubject,
         email: matched.email,
         phone: matched.phone,
         status: matched.status,
@@ -704,10 +885,13 @@ const normalizeSchoolName = (name?: string): string => {
       setIsLoginModalOpen(false);
       window.history.pushState({}, '', '/dashboard');
 
+      const guruDesc = matched.assignedSubject
+        ? `Guru ${matched.assignedSubject} (${matched.assignedClass || 'Multi-Kelas'})`
+        : `Wali ${matched.assignedClass || 'Kelas'}`;
       showSuccessToast(
         matched.role === 'ADMIN'
           ? `Selamat datang, ${matched.name}! Login Admin berhasil.`
-          : `Selamat datang, ${matched.name}! Anda login sebagai Wali ${matched.assignedClass}.`
+          : `Selamat datang, ${matched.name}! Anda login sebagai ${guruDesc}.`
       );
 
       return { success: true, message: 'Login berhasil', user: userObj };
@@ -804,39 +988,12 @@ const normalizeSchoolName = (name?: string): string => {
 
   // =========================================================================
   // SORT CLASSES FROM GRADE 1 & RBAC ACCESS CONTROL FILTERING
-  // If currentUser is GURU, data is strictly filtered to their assignedClass
+  // Supports both single-class Wali Kelas and multi-class Guru Mapel (PJOK/TIK)
   // =========================================================================
   const sortedClasses = useMemo(() => {
-    const getClassSortOrder = (cls: ClassRoom): number => {
-      const name = (cls.name || '').trim();
-      const digitMatch = name.match(/\d+/);
-      if (digitMatch) {
-        return parseInt(digitMatch[0], 10);
-      }
-      const romanMatch = name.match(/\b(XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)\b/i);
-      if (romanMatch) {
-        const romanMap: Record<string, number> = {
-          I: 1,
-          II: 2,
-          III: 3,
-          IV: 4,
-          V: 5,
-          VI: 6,
-          VII: 7,
-          VIII: 8,
-          IX: 9,
-          X: 10,
-          XI: 11,
-          XII: 12,
-        };
-        return romanMap[romanMatch[1].toUpperCase()] ?? 999;
-      }
-      return Number(cls.grade) || 999;
-    };
-
     return [...classes].sort((a, b) => {
-      const orderA = getClassSortOrder(a);
-      const orderB = getClassSortOrder(b);
+      const orderA = getClassGradeNumber(a);
+      const orderB = getClassGradeNumber(b);
       if (orderA !== orderB) return orderA - orderB;
       return (a.name || '').localeCompare(b.name || '', 'id', {
         numeric: true,
@@ -845,27 +1002,57 @@ const normalizeSchoolName = (name?: string): string => {
     });
   }, [classes]);
 
-  const accessibleStudents = isGuru && currentUser?.assignedClass
-    ? students.filter((s) => s.className.toLowerCase() === currentUser.assignedClass?.toLowerCase())
-    : students;
+  const allowedClassNames = useMemo(
+    () => getAllowedClassesForUser(currentUser, sortedClasses),
+    [currentUser, sortedClasses]
+  );
 
-  const accessibleAttendance = isGuru && currentUser?.assignedClass
-    ? attendance.filter((a) => a.className.toLowerCase() === currentUser.assignedClass?.toLowerCase())
-    : attendance;
+  const allowedClassSet = useMemo(
+    () => new Set(allowedClassNames.map((n) => n.toLowerCase())),
+    [allowedClassNames]
+  );
+
+  const hasRestrictedGuruScope = isGuru && allowedClassSet.size > 0;
+
+  const accessibleStudents = useMemo(
+    () =>
+      hasRestrictedGuruScope
+        ? students.filter((s) => allowedClassSet.has(s.className.toLowerCase()))
+        : students,
+    [hasRestrictedGuruScope, students, allowedClassSet]
+  );
+
+  const accessibleAttendance = useMemo(
+    () =>
+      hasRestrictedGuruScope
+        ? attendance.filter((a) => allowedClassSet.has(a.className.toLowerCase()))
+        : attendance,
+    [hasRestrictedGuruScope, attendance, allowedClassSet]
+  );
 
   const accessibleClasses = useMemo(
     () =>
-      isGuru && currentUser?.assignedClass
-        ? sortedClasses.filter(
-            (c) => c.name.toLowerCase() === currentUser.assignedClass?.toLowerCase()
-          )
+      hasRestrictedGuruScope
+        ? sortedClasses.filter((c) => allowedClassSet.has(c.name.toLowerCase()))
         : sortedClasses,
-    [isGuru, currentUser?.assignedClass, sortedClasses]
+    [hasRestrictedGuruScope, sortedClasses, allowedClassSet]
   );
 
-  const accessibleExamSchedules = isGuru && currentUser?.assignedClass
-    ? examSchedules.filter((e) => e.className.toLowerCase() === currentUser.assignedClass?.toLowerCase())
-    : examSchedules;
+  const accessibleExamSchedules = useMemo(
+    () =>
+      hasRestrictedGuruScope
+        ? examSchedules.filter((e) => allowedClassSet.has(e.className.toLowerCase()))
+        : examSchedules,
+    [hasRestrictedGuruScope, examSchedules, allowedClassSet]
+  );
+
+  const accessibleGradeKatrolSheets = useMemo(
+    () =>
+      hasRestrictedGuruScope
+        ? gradeKatrolSheets.filter((g) => allowedClassSet.has(g.className.toLowerCase()))
+        : gradeKatrolSheets,
+    [hasRestrictedGuruScope, gradeKatrolSheets, allowedClassSet]
+  );
 
   // Determine current scan type based on time and settings
   const determineScanType = useCallback((): AttendanceType => {
@@ -1153,9 +1340,8 @@ const normalizeSchoolName = (name?: string): string => {
   const updateAttendanceRecord = useCallback(
     (updated: AttendanceRecord, silent = false) => {
       if (
-        isGuru &&
-        currentUser?.assignedClass &&
-        updated.className.toLowerCase() !== currentUser.assignedClass.toLowerCase()
+        hasRestrictedGuruScope &&
+        !allowedClassSet.has(updated.className.toLowerCase())
       ) {
         showErrorToast('Anda hanya dapat mengubah presensi siswa pada kelas Anda.');
         return false;
@@ -1186,7 +1372,7 @@ const normalizeSchoolName = (name?: string): string => {
       }
       return true;
     },
-    [isGuru, currentUser]
+    [hasRestrictedGuruScope, allowedClassSet]
   );
 
   const upsertAttendanceForDate = useCallback(
@@ -1216,9 +1402,8 @@ const normalizeSchoolName = (name?: string): string => {
         return false;
       }
       if (
-        isGuru &&
-        currentUser?.assignedClass &&
-        student.className.toLowerCase() !== currentUser.assignedClass.toLowerCase()
+        hasRestrictedGuruScope &&
+        !allowedClassSet.has(student.className.toLowerCase())
       ) {
         showErrorToast('Anda hanya dapat mengelola presensi siswa pada kelas Anda.');
         return false;
@@ -1296,7 +1481,7 @@ const normalizeSchoolName = (name?: string): string => {
       }
       return true;
     },
-    [students, attendance, settings, isGuru, currentUser]
+    [students, attendance, settings, hasRestrictedGuruScope, allowedClassSet]
   );
 
   const batchUpdateAttendanceStatus = useCallback(
@@ -1314,9 +1499,8 @@ const normalizeSchoolName = (name?: string): string => {
         prev.map((rec) => {
           if (!idSet.has(rec.id)) return rec;
           if (
-            isGuru &&
-            currentUser?.assignedClass &&
-            rec.className.toLowerCase() !== currentUser.assignedClass.toLowerCase()
+            hasRestrictedGuruScope &&
+            !allowedClassSet.has(rec.className.toLowerCase())
           ) {
             return rec;
           }
@@ -1342,9 +1526,8 @@ const normalizeSchoolName = (name?: string): string => {
         .filter(
           (rec) =>
             !(
-              isGuru &&
-              currentUser?.assignedClass &&
-              rec.className.toLowerCase() !== currentUser.assignedClass.toLowerCase()
+              hasRestrictedGuruScope &&
+              !allowedClassSet.has(rec.className.toLowerCase())
             )
         )
         .map((rec) => ({
@@ -1372,7 +1555,7 @@ const normalizeSchoolName = (name?: string): string => {
       }
       return toPersist.length;
     },
-    [attendance, settings, isGuru, currentUser]
+    [attendance, settings, hasRestrictedGuruScope, allowedClassSet]
   );
 
   const deleteAttendanceRecord = useCallback((id: string, silent = false) => {
@@ -1893,6 +2076,54 @@ const normalizeSchoolName = (name?: string): string => {
     []
   );
 
+  const saveGradeKatrolSheet = useCallback(async (sheet: GradeKatrolSheet, silent = false) => {
+    setGradeKatrolSheets((prev) => {
+      const idx = prev.findIndex((item) => item.id === sheet.id);
+      const next = idx >= 0 ? prev.map((item) => (item.id === sheet.id ? sheet : item)) : [sheet, ...prev];
+      return [...next].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    });
+    try {
+      await saveCloudGradeKatrol(sheet);
+      if (!silent) {
+        showSuccessToast(`Data Katrol Nilai ${sheet.subject} (${sheet.className}) berhasil disimpan.`);
+      }
+    } catch {
+      if (!silent) {
+        showWarningToast('Disimpan di perangkat lokal; sinkronisasi cloud tertunda.');
+      }
+    }
+  }, []);
+
+  const addAchievement = useCallback((data: Omit<SchoolAchievement, 'id'>) => {
+    const newItem: SchoolAchievement = {
+      ...data,
+      id: `ach-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    };
+    setAchievements((prev) => [newItem, ...prev]);
+    showSuccessToast(`Prestasi "${newItem.title}" berhasil ditambahkan.`);
+    return newItem;
+  }, []);
+
+  const updateAchievement = useCallback((updated: SchoolAchievement) => {
+    setAchievements((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+    showSuccessToast(`Data prestasi berhasil diperbarui.`);
+  }, []);
+
+  const deleteAchievement = useCallback((id: string) => {
+    setAchievements((prev) => prev.filter((item) => item.id !== id));
+    showSuccessToast(`Data prestasi berhasil dihapus.`);
+  }, []);
+
+  const deleteGradeKatrolSheet = useCallback(async (id: string) => {
+    setGradeKatrolSheets((prev) => prev.filter((item) => item.id !== id));
+    try {
+      await deleteCloudGradeKatrol(id);
+      showSuccessToast('Data Katrol Nilai berhasil dihapus.');
+    } catch {
+      showWarningToast('Data lokal dihapus; penghapusan cloud tertunda.');
+    }
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
@@ -1969,6 +2200,14 @@ const normalizeSchoolName = (name?: string): string => {
         copyExamSchedulesToClasses,
         updateExamConfig,
         updateExamInstrument,
+        gradeKatrolSheets,
+        accessibleGradeKatrolSheets,
+        saveGradeKatrolSheet,
+        deleteGradeKatrolSheet,
+        achievements,
+        addAchievement,
+        updateAchievement,
+        deleteAchievement,
       }}
     >
       {children}
