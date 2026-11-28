@@ -216,12 +216,13 @@ export function printHtmlDocument(htmlContent: string): void {
   const iframe = document.createElement('iframe');
   iframe.id = 'mi-print-iframe';
   iframe.style.position = 'fixed';
-  iframe.style.right = '0';
-  iframe.style.bottom = '0';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
+  iframe.style.left = '-10000px';
+  iframe.style.top = '0';
+  iframe.style.width = '330mm';
+  iframe.style.height = '330mm';
   iframe.style.border = '0';
-  iframe.style.visibility = 'hidden';
+  iframe.style.opacity = '0';
+  iframe.style.pointerEvents = 'none';
 
   document.body.appendChild(iframe);
 
@@ -281,10 +282,64 @@ export async function downloadDaftarHadirSatuLembarPdf(html: string, fileName: s
     for (let i = 0; i < pages.length; i += 1) {
       const canvas = await html2canvas(pages[i], { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false });
       if (i > 0) pdf.addPage([330, 215], 'landscape');
-      pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 330, Math.min((canvas.height * 330) / canvas.width, 215));
+      const imgW = 330;
+      const rawH = (canvas.height * imgW) / canvas.width;
+      const imgH = Math.min(rawH, 215);
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, imgW, imgH);
     }
     pdf.save(fileName);
     return pages.length;
+  } finally {
+    iframe.remove();
+  }
+}
+
+// Unduh PDF F4 portrait (215 x 330 mm) dari dokumen HTML `.sub-doc-page`
+export async function downloadF4PortraitPdf(html: string, fileName: string): Promise<number> {
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:960px;height:2400px;border:0;';
+  document.body.appendChild(iframe);
+  try {
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) throw new Error('Iframe PDF tidak dapat dibuat.');
+    doc.open();
+    doc.write(html);
+    doc.close();
+    await Promise.all(Array.from(doc.images).map((img) => img.complete ? Promise.resolve() : new Promise<void>((resolve) => { img.onload = () => resolve(); img.onerror = () => resolve(); })));
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    const target = doc.querySelector<HTMLElement>('.sub-doc-page') || doc.body;
+    const canvas = await html2canvas(target, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false });
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [215, 330], compress: true });
+    const marginX = 10;
+    const marginY = 10;
+    const contentW = 215 - marginX * 2;
+    const pageContentH = 330 - marginY * 2;
+    const totalImgH = (canvas.height * contentW) / canvas.width;
+    const pageHeightPx = Math.floor((pageContentH * canvas.width) / contentW);
+
+    let offsetY = 0;
+    let pageCount = 0;
+    while (offsetY < canvas.height) {
+      const sliceH = Math.min(pageHeightPx, canvas.height - offsetY);
+      const sliceCanvas = document.createElement('canvas');
+      sliceCanvas.width = canvas.width;
+      sliceCanvas.height = sliceH;
+      const ctx = sliceCanvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+        ctx.drawImage(canvas, 0, offsetY, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+      }
+      if (pageCount > 0) pdf.addPage([215, 330], 'portrait');
+      const sliceMmH = (sliceH * contentW) / canvas.width;
+      pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', marginX, marginY, contentW, Math.min(sliceMmH, pageContentH));
+      offsetY += sliceH;
+      pageCount += 1;
+      if (totalImgH <= pageContentH) break;
+    }
+    pdf.save(fileName);
+    return Math.max(1, pageCount);
   } finally {
     iframe.remove();
   }
