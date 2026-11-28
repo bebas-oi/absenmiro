@@ -19,17 +19,28 @@ import {
   FileText,
   User,
   Building,
+  Download,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { SchoolAchievement } from '../types';
 import { showConfirmDialog, showSuccessToast, showWarningToast } from '../utils/alerts';
-import { buildOfficialKopHtml, printHtmlDocument } from '../utils/printUtils';
+import { buildOfficialKopHtml, printHtmlDocument, downloadF4PortraitPdf } from '../utils/printUtils';
 
 const CATEGORIES = ['Akademik', 'Non-Akademik', 'Keagamaan', 'Seni & Olahraga', 'Lainnya'] as const;
 const LEVELS = ['Madrasah', 'Kecamatan', 'Kabupaten', 'Provinsi', 'Nasional', 'Internasional'] as const;
 
+const escapeHtml = (str: string) => {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+};
+
 export const AchievementsView: React.FC = () => {
-  const { achievements, addAchievement, updateAchievement, deleteAchievement, isGuru } = useApp();
+  const { achievements, addAchievement, updateAchievement, deleteAchievement, isGuru, settings } = useApp();
 
   const [search, setSearch] = useState('');
   const [filterYear, setFilterYear] = useState('all');
@@ -194,7 +205,7 @@ export const AchievementsView: React.FC = () => {
 
   const handlePrintReport = () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const kopHtml = buildOfficialKopHtml(origin);
+    const kopHtml = buildOfficialKopHtml(origin, { compact: true });
 
     const rowsHtml = filteredAchievements
       .map(
@@ -203,20 +214,23 @@ export const AchievementsView: React.FC = () => {
         <td style="text-align: center; padding: 8px; border: 1px solid #cbd5e1;">${idx + 1}</td>
         <td style="text-align: center; padding: 8px; border: 1px solid #cbd5e1; font-weight: bold;">${a.year}</td>
         <td style="padding: 8px; border: 1px solid #cbd5e1;">
-          <div style="font-weight: bold; font-size: 13px;">${a.title}</div>
-          <div style="font-size: 11px; color: #475569; margin-top: 2px;">${a.description || '-'}</div>
+          <div style="font-weight: bold; font-size: 13px;">${escapeHtml(a.title)}</div>
+          <div style="font-size: 11px; color: #475569; margin-top: 2px;">${escapeHtml(a.description || '-')}</div>
         </td>
         <td style="padding: 8px; border: 1px solid #cbd5e1;">
-          <div style="font-weight: bold;">${a.studentName}</div>
-          <div style="font-size: 11px; color: #64748b;">${a.className || '-'}</div>
+          <div style="font-weight: bold;">${escapeHtml(a.studentName)}</div>
+          <div style="font-size: 11px; color: #64748b;">${escapeHtml(a.className || '-')}</div>
         </td>
-        <td style="text-align: center; padding: 8px; border: 1px solid #cbd5e1; font-weight: bold; color: #047857;">${a.rank}</td>
-        <td style="text-align: center; padding: 8px; border: 1px solid #cbd5e1;">${a.level}</td>
-        <td style="padding: 8px; border: 1px solid #cbd5e1; font-size: 11px;">${a.organizer || '-'}</td>
+        <td style="text-align: center; padding: 8px; border: 1px solid #cbd5e1; font-weight: bold; color: #047857;">${escapeHtml(a.rank)}</td>
+        <td style="text-align: center; padding: 8px; border: 1px solid #cbd5e1;">${escapeHtml(a.level)}</td>
+        <td style="padding: 8px; border: 1px solid #cbd5e1; font-size: 11px;">${escapeHtml(a.organizer || '-')}</td>
       </tr>
     `
       )
       .join('');
+
+    const headmasterName = settings.headmaster || 'H. Ahmad Muzakki, M.Pd.I';
+    const headmasterNip = settings.headmasterNip || '19780512 200501 1 003';
 
     const html = `
       <!DOCTYPE html>
@@ -225,6 +239,7 @@ export const AchievementsView: React.FC = () => {
           <meta charset="utf-8">
           <title>Rekapitulasi Prestasi Sekolah - MI Islamiyah Rowosari</title>
           <style>
+            @page { size: 215mm 330mm; margin: 15mm; }
             body { font-family: 'Times New Roman', serif; color: #0f172a; margin: 20px; font-size: 12px; line-height: 1.4; }
             h3 { text-align: center; text-transform: uppercase; margin: 15px 0 5px 0; font-size: 15px; }
             p.subtitle { text-align: center; font-size: 12px; margin-bottom: 20px; font-weight: bold; }
@@ -261,8 +276,8 @@ export const AchievementsView: React.FC = () => {
             <div class="sign-box">
               <p>Rowosari, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
               <p style="font-weight: bold; margin-bottom: 55px;">Kepala Madrasah,</p>
-              <p style="font-weight: bold; text-decoration: underline;">H. Ahmad Muzakki, M.Pd.I</p>
-              <p>NIP. 197805122005011003</p>
+              <p style="font-weight: bold; text-decoration: underline;">${escapeHtml(headmasterName)}</p>
+              <p>NIP. ${escapeHtml(headmasterNip)}</p>
             </div>
           </div>
         </body>
@@ -272,89 +287,198 @@ export const AchievementsView: React.FC = () => {
     printHtmlDocument(html);
   };
 
-  const handlePrintSingle = (item: SchoolAchievement) => {
+  const generateSingleCertificateHtml = (item: SchoolAchievement) => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const kopHtml = buildOfficialKopHtml(origin);
+    const kopHtml = buildOfficialKopHtml(origin, { compact: true });
 
-    const html = `
+    const headmasterName = settings.headmaster || 'H. Ahmad Muzakki, M.Pd.I';
+    const headmasterNip = settings.headmasterNip || '19780512 200501 1 003';
+
+    return `
       <!DOCTYPE html>
       <html>
         <head>
           <meta charset="utf-8">
-          <title>Sertifikat / Detail Prestasi - ${item.title}</title>
+          <title>Piagam Penghargaan Prestasi - ${escapeHtml(item.title)}</title>
           <style>
-            body { font-family: 'Times New Roman', serif; color: #0f172a; margin: 30px; font-size: 13px; line-height: 1.6; }
-            .cert-box { border: 4px double #047857; padding: 30px; border-radius: 12px; background: #fff; }
-            h2 { text-align: center; text-transform: uppercase; color: #047857; margin: 15px 0 5px 0; font-size: 18px; }
-            h4 { text-align: center; text-transform: uppercase; margin: 0 0 25px 0; font-size: 13px; color: #475569; letter-spacing: 1px; }
-            .recipient { text-align: center; font-size: 22px; font-weight: bold; color: #0f172a; margin: 20px 0; text-transform: uppercase; }
-            .details-table { width: 100%; margin: 25px 0; border-collapse: collapse; }
-            .details-table td { padding: 8px 12px; border-bottom: 1px dashed #cbd5e1; }
-            .label { font-weight: bold; width: 180px; color: #334155; }
-            .footer { margin-top: 50px; display: flex; justify-content: space-between; }
-            .sign-box { text-align: center; width: 220px; }
+            @page {
+              size: 215mm 330mm;
+              margin: 12mm;
+            }
+            body {
+              font-family: 'Times New Roman', serif;
+              color: #1e293b;
+              margin: 0;
+              padding: 0;
+              background: #fff;
+              font-size: 13pt;
+              line-height: 1.5;
+            }
+            .sub-doc-page {
+              width: 191mm;
+              min-height: 306mm;
+              margin: 0 auto;
+              box-sizing: border-box;
+              border: 8px double #047857;
+              padding: 30px 40px;
+              position: relative;
+              background: linear-gradient(to bottom, #ffffff 0%, #fefcf7 100%);
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+            }
+            .cert-title {
+              text-align: center;
+              text-transform: uppercase;
+              color: #047857;
+              font-size: 26pt;
+              font-weight: bold;
+              letter-spacing: 2px;
+              margin: 12px 0 2px 0;
+            }
+            .cert-subtitle {
+              text-align: center;
+              text-transform: uppercase;
+              font-size: 12pt;
+              color: #b45309;
+              font-weight: bold;
+              letter-spacing: 1.5px;
+              margin-bottom: 20px;
+            }
+            .cert-body {
+              text-align: center;
+              flex: 1;
+              display: flex;
+              flex-direction: column;
+              justify-content: center;
+              margin: 10px 0;
+            }
+            .recipient-label {
+              font-size: 12.5pt;
+              font-style: italic;
+              color: #475569;
+              margin-bottom: 6px;
+            }
+            .recipient-name {
+              font-size: 28pt;
+              font-weight: bold;
+              color: #0f172a;
+              text-transform: uppercase;
+              margin: 6px 0 4px 0;
+              letter-spacing: 1.2px;
+              border-bottom: 2px solid #cbd5e1;
+              display: inline-block;
+              padding-bottom: 4px;
+            }
+            .recipient-class {
+              font-size: 13.5pt;
+              font-weight: bold;
+              color: #047857;
+              margin-top: 6px;
+              margin-bottom: 22px;
+            }
+            .achievement-desc-box {
+              background: rgba(4, 120, 87, 0.03);
+              border: 1px solid rgba(4, 120, 87, 0.25);
+              border-radius: 10px;
+              padding: 20px 24px;
+              margin: 12px auto;
+              max-width: 92%;
+            }
+            .achievement-title {
+              font-size: 16pt;
+              font-weight: bold;
+              color: #0f172a;
+              margin-bottom: 8px;
+              text-transform: uppercase;
+            }
+            .achievement-rank {
+              font-size: 18pt;
+              font-weight: bold;
+              color: #d97706;
+              margin-bottom: 8px;
+              text-transform: uppercase;
+            }
+            .meta-text {
+              font-size: 12pt;
+              color: #334155;
+              margin: 4px 0;
+            }
+            .cert-footer {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-end;
+              margin-top: 25px;
+            }
+            .sign-box {
+              text-align: center;
+              width: 250px;
+            }
+            .sign-name {
+              font-weight: bold;
+              text-decoration: underline;
+              font-size: 13.5pt;
+              color: #0f172a;
+              margin-top: 55px;
+              margin-bottom: 2px;
+            }
           </style>
         </head>
         <body>
-          <div class="cert-box">
-            ${kopHtml}
-            <h2>SURAT KETERANGAN / PIAGAM PENGHARGAAN PRESTASI</h2>
-            <h4>TENTANG PENCAPAIAN PRESTASI PESERTA DIDIK TAHUN ${item.year}</h4>
-            
-            <p style="text-align: center; margin-bottom: 10px;">Diberikan kepada peserta didik / tim berprestasi:</p>
-            <div class="recipient">${item.studentName}</div>
-            <p style="text-align: center; margin-top: -10px; font-weight: bold; color: #047857;">Kelas: ${item.className || '-'}</p>
+          <div class="sub-doc-page">
+            <div>
+              ${kopHtml}
+              <div class="cert-title">Piagam Penghargaan Prestasi</div>
+              <div class="cert-subtitle">Tahun Ajaran ${escapeHtml(item.year)}</div>
+            </div>
 
-            <table class="details-table">
-              <tr>
-                <td class="label">Nama Prestasi / Lomba</td>
-                <td>: <strong>${item.title}</strong></td>
-              </tr>
-              <tr>
-                <td class="label">Pencapaian</td>
-                <td>: <strong style="color: #d97706; font-size: 15px;">${item.rank}</strong></td>
-              </tr>
-              <tr>
-                <td class="label">Kategori / Bidang</td>
-                <td>: ${item.category}</td>
-              </tr>
-              <tr>
-                <td class="label">Tingkat Wilayah</td>
-                <td>: Tingkat ${item.level}</td>
-              </tr>
-              <tr>
-                <td class="label">Penyelenggara</td>
-                <td>: ${item.organizer || '-'}</td>
-              </tr>
-              <tr>
-                <td class="label">Tanggal Kegiatan</td>
-                <td>: ${item.date ? new Date(item.date).toLocaleDateString('id-ID', { dateStyle: 'long' }) : '-'}</td>
-              </tr>
-              <tr>
-                <td class="label">Keterangan</td>
-                <td>: ${item.description || '-'}</td>
-              </tr>
-            </table>
+            <div class="cert-body">
+              <div class="recipient-label">Diberikan dengan penuh bangga dan apresiasi kepada:</div>
+              <div>
+                <span class="recipient-name">${escapeHtml(item.studentName)}</span>
+              </div>
+              <div class="recipient-class">Kelas: ${escapeHtml(item.className || '-')}</div>
 
-            <p style="text-align: justify; margin-top: 20px; font-size: 12px; color: #475569;">
-              Demikian piagam dan catatan prestasi ini dicatat dan disahkan sebagai bentuk apresiasi atas dedikasi serta prestasi gemilang yang mengharumkan nama baik lembaga MI Islamiyah Rowosari.
-            </p>
+              <div class="achievement-desc-box">
+                <div class="achievement-rank">${escapeHtml(item.rank)}</div>
+                <div class="achievement-title">${escapeHtml(item.title)}</div>
+                <div class="meta-text">Bidang / Kategori: <strong>${escapeHtml(item.category)}</strong> (Tingkat ${escapeHtml(item.level)})</div>
+                ${item.organizer ? `<div class="meta-text">Penyelenggara: ${escapeHtml(item.organizer)}</div>` : ''}
+                ${item.description ? `<div class="meta-text" style="margin-top: 6px; font-style: italic; color: #475569;">"${escapeHtml(item.description)}"</div>` : ''}
+              </div>
 
-            <div class="footer">
-              <div></div>
+              <p style="font-size: 11.5pt; color: #475569; max-width: 84%; margin: 15px auto 0 auto; text-align: justify;">
+                Atas dedikasi, prestasi gemilang, dan kerja keras yang telah dipersembahkan, sehingga mengharumkan nama baik lembaga pendidikan Madrasah Ibtidaiyah Islamiyah Rowosari.
+              </p>
+            </div>
+
+            <div class="cert-footer">
+              <div style="font-size: 10pt; color: #64748b;">
+                <p>Nomor: PRST/${item.year}/${item.id.substring(0, 5).toUpperCase()}</p>
+                <p>Terverifikasi oleh Sistem MI Rowosari</p>
+              </div>
               <div class="sign-box">
-                <p>Rowosari, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                <p style="font-weight: bold; margin-bottom: 50px;">Kepala Madrasah,</p>
-                <p style="font-weight: bold; text-decoration: underline;">H. Ahmad Muzakki, M.Pd.I</p>
-                <p>NIP. 197805122005011003</p>
+                <p style="margin: 0; color: #334155;">Rowosari, ${item.date ? new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                <p style="margin: 2px 0 0 0; font-weight: bold; color: #0f172a;">Kepala Madrasah,</p>
+                <div class="sign-name">${escapeHtml(headmasterName)}</div>
+                <p style="margin: 0; font-size: 11pt; color: #334155;">NIP. ${escapeHtml(headmasterNip)}</p>
               </div>
             </div>
           </div>
         </body>
       </html>
     `;
+  };
 
+  const handlePrintSingle = (item: SchoolAchievement) => {
+    const html = generateSingleCertificateHtml(item);
     printHtmlDocument(html);
+  };
+
+  const handleDownloadPdfSingle = async (item: SchoolAchievement) => {
+    const html = generateSingleCertificateHtml(item);
+    await downloadF4PortraitPdf(html, `Piagam_Prestasi_${item.studentName.replace(/\s+/g, '_')}.pdf`);
+    showSuccessToast('PDF F4 Piagam Penghargaan berhasil diunduh!');
   };
 
   return (
@@ -587,19 +711,29 @@ export const AchievementsView: React.FC = () => {
               <div className="flex items-center space-x-2">
                 <FileText className="w-5 h-5 text-emerald-400" />
                 <h3 className="text-sm sm:text-base font-black uppercase tracking-wider">
-                  Pratinjau Dokumen / Piagam Prestasi
+                  Pratinjau Piagam F4 (Potrait)
                 </h3>
               </div>
 
               {selectedItem && (
-                <button
-                  type="button"
-                  onClick={() => handlePrintSingle(selectedItem)}
-                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-md flex items-center space-x-1.5 cursor-pointer transition-all"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>Cetak Piagam</span>
-                </button>
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadPdfSingle(selectedItem)}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-md flex items-center space-x-1.5 cursor-pointer transition-all"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>PDF</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handlePrintSingle(selectedItem)}
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-md flex items-center space-x-1.5 cursor-pointer transition-all"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>Cetak</span>
+                  </button>
+                </div>
               )}
             </div>
 
@@ -676,8 +810,8 @@ export const AchievementsView: React.FC = () => {
                   </div>
 
                   <div className="mt-6 pt-4 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500 font-medium">
-                    <span>Disahkan oleh Sistem Madrasah</span>
-                    <span className="font-bold text-emerald-700">MI Islamiyah Rowosari</span>
+                    <span>Format: F4 Portofolio (Ukuran Cetak Resmi)</span>
+                    <span className="font-bold text-emerald-700">Kepala Madrasah: {settings.headmaster || 'H. Ahmad Muzakki, M.Pd.I'}</span>
                   </div>
                 </div>
               ) : (

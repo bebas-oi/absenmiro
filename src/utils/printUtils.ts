@@ -16,14 +16,14 @@ export function buildOfficialKopHtml(
   const logoUrl = `${origin}${MI_LOGO_PATH}`;
 
   const wrapMinHeight = compact ? '64px' : '78px';
-  const logoSize = compact ? '60px' : '74px';
-  const sidePadding = compact ? '68px' : '82px';
-  const f1 = compact ? '11.5px' : '13.5px';
-  const f2 = compact ? '16px' : '19px';
-  const f3 = compact ? '11.5px' : '13.5px';
-  const f4 = compact ? '8.8px' : '9px';
-  const f6 = compact ? '9.2px' : '10.5px';
-  const f7 = compact ? '9.2px' : '10.5px';
+  const logoSize = compact ? '58px' : '74px';
+  const sidePadding = compact ? '76px' : '82px';
+  const f1 = compact ? '11px' : '13.5px';
+  const f2 = compact ? '15px' : '19px';
+  const f3 = compact ? '11px' : '13.5px';
+  const f4 = compact ? '7.8px' : '9px';
+  const f6 = compact ? '8.8px' : '10.5px';
+  const f7 = compact ? '8.8px' : '10.5px';
   const ruleMargin = compact ? '3px 0 8px 0' : '4px 0 14px 0';
 
   return `
