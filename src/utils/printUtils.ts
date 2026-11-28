@@ -1,4 +1,6 @@
 import { showWarningToast } from './alerts';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 const MI_LOGO_PATH = '/assets/aistudio/Logo_MI_Rowosari_2_b88f498f.png';
 
@@ -19,8 +21,7 @@ export function buildOfficialKopHtml(
   const f1 = compact ? '11.5px' : '13.5px';
   const f2 = compact ? '16px' : '19px';
   const f3 = compact ? '11.5px' : '13.5px';
-  const f4 = compact ? '8.8px' : '10px';
-  const f5 = compact ? '9.2px' : '10.5px';
+  const f4 = compact ? '8.8px' : '9px';
   const f6 = compact ? '9.2px' : '10.5px';
   const f7 = compact ? '9.2px' : '10.5px';
   const ruleMargin = compact ? '3px 0 8px 0' : '4px 0 14px 0';
@@ -34,8 +35,7 @@ export function buildOfficialKopHtml(
         <div style="font-size:${f1};font-weight:700;letter-spacing:0.3px;text-transform:uppercase;">LEMBAGA PENDIDIKAN MA’ARIF NU</div>
         <div style="font-size:${f2};font-weight:800;letter-spacing:0.4px;text-transform:uppercase;margin:1px 0;">“MI ISLAMIYAH ROWOSARI”</div>
         <div style="font-size:${f3};font-weight:700;text-transform:uppercase;">BADAN HUKUM PERKUMPULAN NAHDLATUL ULAMA</div>
-        <div style="font-size:${f4};font-weight:700;text-transform:uppercase;margin-top:1px;">SK MENKUMHAM NO. AHU-119.AH.01.08 TAHUN 2013</div>
-        <div style="font-size:${f5};font-weight:700;margin-top:1px;">Status : Terakreditasi B, NSM : 111233250075, NPSN : 60713227</div>
+<div style="font-size:${f4};font-weight:700;margin-top:1px;white-space:nowrap;">SK MENKUMHAM NO. AHU-119.AH.01.08 TAHUN 2013 | Status : Terakreditasi B, NSM : 111233250075, NPSN : 60713227</div>
         <div style="font-size:${f6};font-weight:700;color:#2563eb;margin-top:1px;">e-mail : <a href="mailto:miirowosari@yahoo.co.id" style="color:#2563eb;text-decoration:underline;">miirowosari@yahoo.co.id</a> / <a href="mailto:miirowosari@gmail.com" style="color:#2563eb;text-decoration:underline;">miirowosari@gmail.com</a></div>
         <div style="font-size:${f7};font-weight:700;font-style:italic;margin-top:1px;">Alamat : Jl. Masjid Adiloko, No.03, Rt.04/Rw.04, Rowosari, Limpung, Batang</div>
       </div>
@@ -257,4 +257,35 @@ export function printHtmlDocument(htmlContent: string): void {
       triggerPrint();
     }
   }, 1000);
+}
+
+// Unduh PDF F4 landscape (330 x 215 mm) tanpa dialog cetak: merender HTML
+// cetak yang sama (tiap `.f4-landscape-page` = 1 halaman PDF) di iframe
+// tersembunyi, lalu mengunduhnya. Mengembalikan jumlah halaman PDF.
+export async function downloadDaftarHadirSatuLembarPdf(html: string, fileName: string): Promise<number> {
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:1400px;height:2400px;border:0;';
+  document.body.appendChild(iframe);
+  try {
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) throw new Error('Iframe PDF tidak dapat dibuat.');
+    doc.open();
+    doc.write(html);
+    doc.close();
+    await Promise.all(Array.from(doc.images).map((img) => img.complete ? Promise.resolve() : new Promise<void>((resolve) => { img.onload = () => resolve(); img.onerror = () => resolve(); })));
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    const pages = Array.from(doc.querySelectorAll<HTMLElement>('.f4-landscape-page'));
+    if (pages.length === 0) throw new Error('Halaman .f4-landscape-page tidak ditemukan.');
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [330, 215], compress: true });
+    for (let i = 0; i < pages.length; i += 1) {
+      const canvas = await html2canvas(pages[i], { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false });
+      if (i > 0) pdf.addPage([330, 215], 'landscape');
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 330, Math.min((canvas.height * 330) / canvas.width, 215));
+    }
+    pdf.save(fileName);
+    return pages.length;
+  } finally {
+    iframe.remove();
+  }
 }

@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ClipboardCheck,
   CreditCard,
+  Download,
   ExternalLink,
   FileCheck2,
   FileSpreadsheet,
@@ -32,8 +33,8 @@ import {
   ExamScheduleItem,
   ExamType,
 } from '../types';
-import { buildOfficialKopHtml, printHtmlDocument } from '../utils/printUtils';
-import { showSuccessToast, showWarningToast } from '../utils/alerts';
+import { buildOfficialKopHtml, downloadDaftarHadirSatuLembarPdf, printHtmlDocument } from '../utils/printUtils';
+import { showErrorToast, showSuccessToast, showWarningToast } from '../utils/alerts';
 
 const MI_LOGO_PATH = '/assets/aistudio/Logo_MI_Rowosari_2_b88f498f.png';
 
@@ -116,6 +117,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
   const [innerMode, setInnerMode] = useState<'instrument' | 'submenu'>('instrument');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [customSubjectInput, setCustomSubjectInput] = useState<string>('');
+  const [downloadingDaftarHadirPdf, setDownloadingDaftarHadirPdf] = useState(false);
   const [selectedChecklistId, setSelectedChecklistId] = useState<string>(
     savedInstrument.checklist[0]?.id || 'chk-1'
   );
@@ -825,30 +827,28 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
         <base href="${origin}/" />
         <title>${escapeHtml(title)}</title>
         <style>
-          @page { size: ${pageW} ${pageH} ${landscape ? 'landscape' : 'portrait'}; margin: ${landscape ? '8mm' : '12mm'}; }
+          @page { size: ${pageW} ${pageH}; margin: ${landscape ? '8mm' : '12mm'}; }
           *, *::before, *::after { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; }
-          body { font-family: Arial, Helvetica, sans-serif; color: #0f172a; font-size: 11px; margin: 0; padding: 0; background: #e2e8f0; }
+          body { font-family: Arial, Helvetica, sans-serif; color: #000000; font-size: 11px; margin: 0; padding: 0; background: #ffffff; }
           .sub-doc-page {
             width: ${containerW};
             min-height: ${containerMinH};
-            margin: 14px auto;
-            padding: 8mm 10mm;
+            margin: 12mm auto;
+            padding: 0;
             background: #ffffff;
-            box-shadow: 0 4px 18px rgba(15, 23, 42, 0.12);
             display: flex;
             flex-direction: column;
             justify-content: space-between;
           }
           @media print {
             body { background: #ffffff !important; }
-            .sub-doc-page { width: ${containerW}; min-height: 100vh; margin: 0; padding: 0; box-shadow: none; }
+            .sub-doc-page { width: ${containerW}; min-height: auto; margin: 0; padding: 0; }
           }
           table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
           th { background: #065f46 !important; color: #ffffff !important; padding: 7px 6px; border: 1px solid #065f46; font-size: 10px; text-transform: uppercase; }
-          td { padding: 6px; border: 1px solid #cbd5e1; font-size: 10.5px; }
-          tr:nth-child(even) td { background: #f8fafc !important; }
+          td { padding: 6px; border: 1px solid #000000; background: #ffffff !important; font-size: 10.5px; color: #000000; }
           .signs { display: flex; justify-content: space-between; padding: 0 24px; margin-top: 22px; page-break-inside: avoid; }
-          .sign-box { text-align: center; width: 220px; }
+          .sign-box { text-align: center; width: 260px; }
           .sign-space { height: 72px; }
         </style>
       </head>
@@ -919,7 +919,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
         <base href="${origin}/" />
         <title>SK Panitia ${examType} - ${escapeHtml(schoolDisplay)}</title>
         <style>
-          @page { size: 215mm 330mm portrait; margin: 10mm; }
+          @page { size: 215mm 330mm; margin: 10mm; }
           *, *::before, *::after {
             box-sizing: border-box;
             -webkit-print-color-adjust: exact !important;
@@ -1311,7 +1311,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
         <title>${escapeHtml(title)}</title>
         <style>
           @page {
-            size: 215mm 330mm portrait;
+            size: 215mm 330mm;
             margin: 12mm 14mm;
           }
           *, *::before, *::after {
@@ -1322,19 +1322,18 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
           }
           body {
             font-family: Arial, Helvetica, sans-serif;
-            color: #0f172a;
+            color: #000000;
             font-size: 11px;
             margin: 0;
             padding: 0;
-            background: #e2e8f0;
+            background: #ffffff;
           }
           .sub-doc-page {
             width: 187mm;
             min-height: 306mm;
-            margin: 14px auto;
-            padding: 6mm 8mm;
+            margin: 12mm auto;
+            padding: 0;
             background: #ffffff;
-            box-shadow: 0 4px 18px rgba(15, 23, 42, 0.12);
             display: flex;
             flex-direction: column;
             justify-content: space-between;
@@ -1349,10 +1348,9 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
             body { background: #ffffff !important; }
             .sub-doc-page {
               width: 100%;
-              min-height: 100vh;
+              min-height: auto;
               margin: 0;
               padding: 0;
-              box-shadow: none;
             }
           }
           table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
@@ -1367,10 +1365,11 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
           }
           td {
             padding: 5px 6px;
-            border: 1px solid #cbd5e1;
+            border: 1px solid #000000;
+            background: #ffffff !important;
+            color: #000000;
             font-size: 10px;
           }
-          tr:nth-child(even) td { background: #f8fafc !important; }
           .signs {
             display: flex;
             justify-content: space-between;
@@ -1378,7 +1377,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
             margin-top: 14px;
             page-break-inside: avoid;
           }
-          .sign-box { text-align: center; width: 220px; }
+          .sign-box { text-align: center; width: 260px; }
           .sign-space { height: 72px; }
         </style>
       </head>
@@ -1421,7 +1420,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
     printSubMenuDocument(
       `DAFTAR HADIR PESERTA ${examType} - ${subMenuClass.toUpperCase()} (${subjData.subject})`,
       `
-        <div style="display:flex;justify-content:space-between;background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:11.5px;">
+        <div style="display:flex;justify-content:space-between;background:#ffffff;border:1px solid #000000;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:11.5px;">
           <div><strong>Kelas / Ruang:</strong> ${escapeHtml(subMenuClass)}</div>
           <div><strong>Mata Pelajaran:</strong> <u>${escapeHtml(subjData.subject)}</u></div>
           <div><strong>Hari/Tgl:</strong> ${escapeHtml(subjData.dayDate || '-')}</div>
@@ -1438,12 +1437,12 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
           </thead>
           <tbody>${rows}</tbody>
         </table>
-        <p style="text-align:right;margin:0 24px 6px 0;font-size:11.5px;">Rowosari, ${formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA'))}</p><div class="signs" style="font-size:11.5px;">
+        <p style="text-align:right;margin:0 24px 6px 0;font-size:12pt;">Rowosari, ${formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA'))}</p><div class="signs" style="font-size:12pt;">
           <div class="sign-box">
             <p style="margin:0;">Mengetahui, Panitia ${examType}</p>
             <div class="sign-space"></div>
             <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(chairName)}</p>
-            ${chairNip ? `<p style="margin:2px 0 0 0;font-size:10.5px;">NIP. ${escapeHtml(chairNip)}</p>` : ''}
+            ${chairNip ? `<p style="margin:2px 0 0 0;font-size:12pt;">NIP. ${escapeHtml(chairNip)}</p>` : ''}
           </div>
           <div class="sign-box">
             <p style="margin:0;">Pengawas Ruang,</p>
@@ -1456,19 +1455,19 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
   };
 
   // DAFTAR HADIR 1 LEMBAR PER KELAS (F4 LANDSCAPE 330x215mm): matriks siswa x sesi jadwal kelas itu sendiri
-  const handlePrintDaftarHadirSatuLembar = () => {
+  const buildDaftarHadirSatuLembarHtml = (): string | null => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const classStudents = [...accessibleStudents.filter(
       (s) => s.className === subMenuClass && s.status === 'aktif'
     )].sort((a, b) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
     if (classStudents.length === 0) {
       showWarningToast('Tidak ada siswa aktif di ' + subMenuClass + '.');
-      return;
+      return null;
     }
     const subjects = getClassSubjectsList(subMenuClass);
     if (subjects.length === 0) {
       showWarningToast('Tidak ditemukan mata pelajaran untuk ' + subMenuClass + '.');
-      return;
+      return null;
     }
     const chairName = examConfigs[examType]?.committeeChair || draft.committeeChair || 'Ahmad Mustofa, S.Pd';
     const chairNip = examConfigs[examType]?.committeeChairNip || draft.committeeChairNip || '';
@@ -1484,10 +1483,10 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
     const signSpaceH = 56;
 
     // F4 Landscape = 330mm x 215mm
-const rowH = 40;
+    const rowH = m <= 9 ? 40 : m === 10 ? 37 : m <= 12 ? 31 : 40;
     const studentFs =
       m <= 12 ? '13px' : m <= 16 ? '12px' : m <= 20 ? '11px' : m <= 25 ? '10.5px' : '10px';
-const rowPadV = '8px';
+    const rowPadV = m >= 11 && m <= 12 ? '4px' : '8px';
     const subjHeaderDateFs = n <= 10 ? '10px' : n <= 14 ? '9px' : '8.5px';
     const subjHeaderNameFs = n <= 10 ? '10.5px' : n <= 14 ? '9.5px' : '8.8px';
 
@@ -1517,8 +1516,72 @@ const rowPadV = '8px';
       })
       .join('');
 
+    const RPP = 12;
+    const allRows = bodyRows.split('</tr>').filter(Boolean).map((r) => r + '</tr>');
+    const colgroupHtml = `<colgroup><col style="width:8mm;" /><col style="width:62mm;" /><col span="${n}" style="width:calc((100% - 70mm) / ${n});" /></colgroup>`;
+    const greenBarHtml = `<div style="background:#065f46;color:#ffffff;font-size:11px;font-weight:700;text-transform:uppercase;text-align:center;padding:3px 6px;letter-spacing:.3px;border:1px solid #065f46;">Kehadiran / Tanda Tangan &mdash; ${escapeHtml(draft.periodLabel || '')}</div>`;
+    const theadHtml = `<thead><tr><th style="font-size:11px;padding:3px 2px;">No</th><th style="font-size:11px;padding:3px 6px;">Nama Peserta Didik</th>${headCells}</tr></thead>`;
+    const tablesHtml = Array.from({ length: Math.ceil(allRows.length / RPP) }, (_, pi) => {
+      const rows = allRows.slice(pi * RPP, pi * RPP + RPP).join('');
+      return `${greenBarHtml}<table>${colgroupHtml}${theadHtml}<tbody>${rows}</tbody></table>`;
+    });
+
     const docTitle = `DAFTAR HADIR PESERTA ${examType} - ${subMenuClass.toUpperCase()} (F4 LANDSCAPE)`;
     const printDateFormatted = formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA'));
+
+    const totalPages = tablesHtml.length;
+    const pagesMarkup = tablesHtml
+      .map((tblHtml, pi) => {
+        const isFirst = pi === 0;
+        const isLast = pi === totalPages - 1;
+        const pageBreakClass = !isLast ? ' f4-page-break' : '';
+        return `
+          <div class="f4-landscape-page${pageBreakClass}">
+            ${
+              isFirst
+                ? `
+              ${buildOfficialKopHtml(origin, { compact: true })}
+              <div style="text-align:center;margin:1px 0 4px 0;">
+                <h3 style="margin:0;font-size:15px;font-weight:800;text-transform:uppercase;text-decoration:underline;letter-spacing:0.3px;">DAFTAR HADIR PESERTA ${examType} &bull; ${escapeHtml(subMenuClass.toUpperCase())}</h3>
+                <p style="margin:1px 0 0 0;font-size:11px;font-weight:700;color:#047857;">${examType} &bull; ${escapeHtml(examConfigs[examType].semester)} &bull; ${escapeHtml(draft.academicYearLabel)}</p>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;background:#ffffff;border:1px solid #000000;border-radius:6px;padding:4px 10px;margin-bottom:4px;font-size:11px;">
+                <div><strong>Kelas / Ruang:</strong> ${escapeHtml(subMenuClass)}</div>
+                <div><strong>Waktu Pelaksanaan:</strong> ${escapeHtml(draft.periodLabel || '-')}</div>
+                <div><strong>Jumlah Siswa:</strong> ${m} &nbsp;&bull;&nbsp; <strong>Jumlah Sesi/Mapel:</strong> ${n}</div>
+              </div>
+            `
+                : ''
+            }
+            ${tblHtml}
+            ${
+              isLast
+                ? `
+              <div class="signs-wrap">
+                <p style="text-align:right;margin:0 32px 2px 0;font-size:12pt;font-weight:600;">Rowosari, ${escapeHtml(printDateFormatted)}</p>
+                <div class="signs">
+                  <div class="sign-box">
+                    <p style="margin:0;font-weight:600;">Mengetahui,</p>
+                    <p style="margin:1px 0 0 0;font-weight:600;">${escapeHtml(headmasterTitleDisplay)}</p>
+                    <div class="sign-space"></div>
+                    <p style="margin:0;font-weight:bold;text-decoration:underline;font-size:12pt;">${escapeHtml(headmasterDisplay)}</p>
+                    ${headmasterNipDisplay ? `<p style="margin:1px 0 0 0;font-size:12pt;">NIP. ${escapeHtml(headmasterNipDisplay)}</p>` : ''}
+                  </div>
+                  <div class="sign-box">
+                    <p style="margin:0;font-weight:600;">Ketua Panitia ${examType},</p>
+                    <div class="sign-space"></div>
+                    <p style="margin:0;font-weight:bold;text-decoration:underline;font-size:12pt;">${escapeHtml(chairName)}</p>
+                    ${chairNip ? `<p style="margin:1px 0 0 0;font-size:12pt;">NIP. ${escapeHtml(chairNip)}</p>` : ''}
+                  </div>
+                </div>
+              </div>
+            `
+                : ''
+            }
+          </div>
+        `;
+      })
+      .join('');
 
     const html = `
       <!DOCTYPE html>
@@ -1529,7 +1592,7 @@ const rowPadV = '8px';
         <style>
           @page {
             size: 330mm 215mm;
-            margin: ${pageMarginV}mm ${pageMarginH}mm;
+            margin: 0;
           }
           *, *::before, *::after {
             -webkit-print-color-adjust: exact !important;
@@ -1539,34 +1602,38 @@ const rowPadV = '8px';
           }
           body {
             font-family: Arial, Helvetica, sans-serif;
-            color: #0f172a;
+            color: #000000;
             margin: 0;
             padding: 0;
-            background: #e2e8f0;
+            background: #ffffff;
           }
           .f4-landscape-page {
             width: 330mm;
-            height: 215mm;
+            /* Tinggi mengikuti isi agar sinkron antara pratinjau layar, PDF, dan cetak browser/Android */
+            height: auto;
             padding: ${pageMarginV}mm ${pageMarginH}mm;
-            margin: 12px auto;
+            margin: 0 auto;
             background: #ffffff;
-            box-shadow: 0 6px 24px rgba(15, 23, 42, 0.16);
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
+            justify-content: flex-start;
             overflow: hidden;
-            
+          }
+          .f4-page-break {
+            page-break-after: always;
+            break-after: page;
+          }
           @media print {
             body { background: #ffffff !important; }
             .f4-landscape-page {
-              width: 314mm;
-              display: block;
+              width: 330mm;
               height: auto;
               margin: 0;
-              padding: 0;
-              box-shadow: none;
-              overflow: visible;
+              padding: ${pageMarginV}mm ${pageMarginH}mm;
+              background: #ffffff !important;
+              overflow: hidden;
             }
+            tr { break-inside: avoid; page-break-inside: avoid; }
           }
           table {
             width: 100%;
@@ -1582,11 +1649,9 @@ const rowPadV = '8px';
             text-transform: uppercase;
           }
           td {
-            border: 1px solid #94a3b8;
-            color: #0f172a;
-          }
-          tr:nth-child(even) td {
-            background: #f8fafc !important;
+            border: 1px solid #000000;
+            background: #ffffff !important;
+            color: #000000;
           }
           .signs-wrap {
             margin-top: 4px;
@@ -1597,11 +1662,11 @@ const rowPadV = '8px';
             display: flex;
             justify-content: space-between;
             padding: 0 32px;
-            font-size: 11.5px;
+            font-size: 12pt;
           }
           .sign-box {
             text-align: center;
-            width: 250px;
+            width: 280px;
           }
           .sign-space {
             height: ${signSpaceH}px;
@@ -1609,59 +1674,34 @@ const rowPadV = '8px';
         </style>
       </head>
       <body>
-        <div class="f4-landscape-page">
-          <div>
-            ${buildOfficialKopHtml(origin, { compact: true })}
-            <div style="text-align:center;margin:1px 0 4px 0;">
-              <h3 style="margin:0;font-size:15px;font-weight:800;text-transform:uppercase;text-decoration:underline;letter-spacing:0.3px;">DAFTAR HADIR PESERTA ${examType} &bull; ${escapeHtml(subMenuClass.toUpperCase())}</h3>
-              <p style="margin:1px 0 0 0;font-size:11px;font-weight:700;color:#047857;">${examType} &bull; ${escapeHtml(examConfigs[examType].semester)} &bull; ${escapeHtml(draft.academicYearLabel)}</p>
-            </div>
-            <div style="display:flex;justify-content:space-between;align-items:center;background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:4px 10px;margin-bottom:4px;font-size:11px;">
-              <div><strong>Kelas / Ruang:</strong> ${escapeHtml(subMenuClass)}</div>
-              <div><strong>Waktu Pelaksanaan:</strong> ${escapeHtml(draft.periodLabel || '-')}</div>
-              <div><strong>Jumlah Siswa:</strong> ${m} &nbsp;&bull;&nbsp; <strong>Jumlah Sesi/Mapel:</strong> ${n}</div>
-            </div>
-            <table>
-              <colgroup>
-                <col style="width:8mm;" />
-                <col style="width:62mm;" />
-                <col span="${n}" style="width:calc((100% - 70mm) / ${n});" />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th rowspan="2" style="font-size:11px;padding:3px 2px;">No</th>
-                  <th rowspan="2" style="font-size:11px;padding:3px 6px;">Nama Peserta Didik</th>
-                  <th colspan="${n}" style="font-size:11px;padding:3px 6px;letter-spacing:0.3px;">Kehadiran / Tanda Tangan &mdash; ${escapeHtml(draft.periodLabel || '')}</th>
-                </tr>
-                <tr>${headCells}</tr>
-              </thead>
-              <tbody>${bodyRows}</tbody>
-            </table>
-          </div>
-          <div class="signs-wrap">
-            <p style="text-align:right;margin:0 32px 2px 0;font-size:11.5px;font-weight:600;">Rowosari, ${escapeHtml(printDateFormatted)}</p>
-            <div class="signs">
-              <div class="sign-box">
-                <p style="margin:0;font-weight:600;">Mengetahui,</p>
-                <p style="margin:1px 0 0 0;font-weight:600;">${escapeHtml(headmasterTitleDisplay)}</p>
-                <div class="sign-space"></div>
-                <p style="margin:0;font-weight:bold;text-decoration:underline;font-size:12px;">${escapeHtml(headmasterDisplay)}</p>
-                ${headmasterNipDisplay ? `<p style="margin:1px 0 0 0;font-size:10.5px;">NIP. ${escapeHtml(headmasterNipDisplay)}</p>` : ''}
-              </div>
-              <div class="sign-box">
-                <p style="margin:0;font-weight:600;">Ketua Panitia ${examType},</p>
-                <div class="sign-space"></div>
-                <p style="margin:0;font-weight:bold;text-decoration:underline;font-size:12px;">${escapeHtml(chairName)}</p>
-                ${chairNip ? `<p style="margin:1px 0 0 0;font-size:10.5px;">NIP. ${escapeHtml(chairNip)}</p>` : ''}
-              </div>
-            </div>
-          </div>
-        </div>
+        ${pagesMarkup}
       </body>
       </html>
     `;
-    printHtmlDocument(html);
+    return html;
   };
+
+  const handlePrintDaftarHadirSatuLembar = () => {
+    const html = buildDaftarHadirSatuLembarHtml();
+    if (html) printHtmlDocument(html);
+  };
+
+const handleDownloadDaftarHadirSatuLembarPdf = async () => {
+  if (downloadingDaftarHadirPdf) return;
+  const html = buildDaftarHadirSatuLembarHtml();
+  if (!html) return;
+  setDownloadingDaftarHadirPdf(true);
+  try {
+    const fileName = `Daftar-Hadir-${subMenuClass.replace(/\s+/g, '-')}.pdf`;
+    const pageCount = await downloadDaftarHadirSatuLembarPdf(html, fileName);
+    showSuccessToast(`PDF Daftar Hadir ${subMenuClass} berhasil diunduh (${pageCount} halaman F4 landscape).`);
+  } catch (error) {
+    console.error('Gagal mengunduh PDF Daftar Hadir:', error);
+    showErrorToast('Gagal membuat PDF. Coba lagi, atau gunakan tombol Cetak.');
+  } finally {
+    setDownloadingDaftarHadirPdf(false);
+  }
+};
 
 const handlePrintDaftarHadirSemuaMapel = () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -1688,6 +1728,7 @@ const handlePrintDaftarHadirSemuaMapel = () => {
       .map(
         (st, idx) => `
         <tr>
+
           <td style="text-align:center;width:28px;">${idx + 1}</td>
           <td style="font-family:monospace;font-weight:bold;width:125px;text-align:center;">${prefix}-${classCode}-${String(idx + 1).padStart(3, '0')}</td>
           <td style="font-family:monospace;width:95px;text-align:center;">${escapeHtml(st.nisn || st.nis || '-')}</td>
@@ -1705,7 +1746,7 @@ const handlePrintDaftarHadirSemuaMapel = () => {
         <div class="sub-doc-page">
           <div>
             ${buildMadrasahKopHtml(origin, `DAFTAR HADIR PESERTA ${examType} - ${escapeHtml(subMenuClass.toUpperCase())}`, true)}
-            <div style="display:flex;justify-content:space-between;background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:6px 10px;margin-bottom:10px;font-size:10px;">
+            <div style="display:flex;justify-content:space-between;background:#ffffff;border:1px solid #000000;border-radius:6px;padding:6px 10px;margin-bottom:10px;font-size:10px;">
               <div><strong>Kelas / Ruang:</strong> ${escapeHtml(subMenuClass)} / ${escapeHtml(subj.room)}</div>
               <div><strong>Mata Pelajaran:</strong> <u>${escapeHtml(subj.subject)}</u></div>
               <div><strong>Hari/Tgl:</strong> ${escapeHtml(subj.dayDate || '-')} ${subj.timeRange ? `(${escapeHtml(subj.timeRange)})` : ''}</div>
@@ -1725,12 +1766,12 @@ const handlePrintDaftarHadirSemuaMapel = () => {
               </tbody>
             </table>
           </div>
-          <p style="text-align:right;margin:0 24px 6px 0;">Rowosari, ${formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA'))}</p><div class="signs">
+          <p style="text-align:right;margin:0 24px 6px 0;font-size:12pt;">Rowosari, ${formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA'))}</p><div class="signs" style="font-size:12pt;">
             <div class="sign-box">
               <p style="margin:0;">Mengetahui, Panitia ${examType}</p>
               <div class="sign-space"></div>
               <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(chairName)}</p>
-              ${chairNip ? `<p style="margin:2px 0 0 0;font-size:9.5px;">NIP. ${escapeHtml(chairNip)}</p>` : ''}
+              ${chairNip ? `<p style="margin:2px 0 0 0;font-size:12pt;">NIP. ${escapeHtml(chairNip)}</p>` : ''}
             </div>
             <div class="sign-box">
               <p style="margin:0;">Pengawas Ruang,</p>
@@ -2237,8 +2278,7 @@ const handlePrintDaftarHadirSemuaMapel = () => {
           }
           table { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
           th { background: #065f46 !important; color: #ffffff !important; padding: 7px 6px; border: 1px solid #065f46; font-size: 10px; text-transform: uppercase; }
-          td { padding: 6px; border: 1px solid #cbd5e1; font-size: 10.5px; }
-          tr:nth-child(even) td { background: #f8fafc !important; }
+          td { padding: 6px; border: 1px solid #000000; background: #ffffff !important; font-size: 10.5px; color: #000000; }
           .signs { display: flex; justify-content: space-between; padding: 0 24px; margin-top: 20px; page-break-inside: avoid; }
           .sign-box { text-align: center; width: 220px; font-size: 11px; }
           .sign-space { height: 48px; }
@@ -2334,7 +2374,7 @@ const handlePrintDaftarHadirSemuaMapel = () => {
         <div class="doc-section">
           <div>
             ${buildMadrasahKopHtml(origin, `DAFTAR HADIR PESERTA ${examType} - ${subMenuClass.toUpperCase()}`, true)}
-            <div style="display:flex;justify-content:space-between;background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:10.5px;">
+            <div style="display:flex;justify-content:space-between;background:#ffffff;border:1px solid #000000;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:10.5px;">
               <div><strong>Kelas / Ruang:</strong> ${escapeHtml(subMenuClass)}</div>
               <div><strong>Mata Pelajaran:</strong> ${escapeHtml(subjData.subject)}</div>
               <div><strong>Hari/Tgl:</strong> ${escapeHtml(subjData.dayDate || '-')}</div>
@@ -2352,7 +2392,7 @@ const handlePrintDaftarHadirSemuaMapel = () => {
               <tbody>${daftarHadirRows}</tbody>
             </table>
           </div>
-          <p style="text-align:right;margin:0 24px 6px 0;">Rowosari, ${formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA'))}</p><div class="signs">
+          <p style="text-align:right;margin:0 24px 6px 0;font-size:12pt;">Rowosari, ${formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA'))}</p><div class="signs" style="font-size:12pt;">
             <div class="sign-box">
               <p style="margin:0;">Mengetahui, Panitia ${examType}</p>
               <div class="sign-space"></div>
@@ -3803,6 +3843,16 @@ const handlePrintDaftarHadirSemuaMapel = () => {
                         <Layers className="w-4 h-4 text-emerald-400" />
                         <span>Cetak 1 Lembar per Kelas • F4 Landscape ({subMenuClass})</span>
                       </button>
+                      <button
+                      type="button"
+                      onClick={handleDownloadDaftarHadirSatuLembarPdf}
+                      disabled={downloadingDaftarHadirPdf}
+                      className="px-4 py-2.5 rounded-2xl bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white font-black uppercase text-xs flex items-center space-x-2 transition-all shadow-sm hover:shadow active:scale-[0.98] border border-sky-500/40"
+                      title="Unduh PDF F4 landscape (330 x 215 mm) tanpa lewat dialog cetak"
+                    >
+                    <Download className="w-4 h-4" />
+                    <span>{downloadingDaftarHadirPdf ? 'Membuat PDF...' : `Unduh PDF • F4 Landscape (${subMenuClass})`}</span>
+                  </button>
                     </div>
                   </div>
                 )}
