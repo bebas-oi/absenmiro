@@ -9,6 +9,7 @@ import {
   CreditCard,
   Download,
   ExternalLink,
+  Eye,
   FileCheck2,
   FileSpreadsheet,
   FileText,
@@ -136,6 +137,8 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
   const [downloadingDaftarHadirPdf, setDownloadingDaftarHadirPdf] = useState(false);
   const [downloadingDaftarHadirPortraitPdf, setDownloadingDaftarHadirPortraitPdf] = useState(false);
   const [downloadingDaftarNilaiPdf, setDownloadingDaftarNilaiPdf] = useState(false);
+  const [downloadingBeritaAcaraPdf, setDownloadingBeritaAcaraPdf] = useState(false);
+  const [showBeritaAcaraPreview, setShowBeritaAcaraPreview] = useState(true);
   const [selectedChecklistId, setSelectedChecklistId] = useState<string>(
     savedInstrument.checklist[0]?.id || 'chk-1'
   );
@@ -514,7 +517,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
             <tr>
               <td class="meta-key">Mata Pelajaran</td>
               <td class="meta-colon">:</td>
-              <td class="meta-val"><strong>${escapeHtml(subjectName)}</strong></td>
+              <td class="meta-val"><span>${escapeHtml(subjectName)}</span></td>
             </tr>
             <tr>
               <td class="meta-key">Alamat</td>
@@ -541,7 +544,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
               <td class="meta-key"></td>
               <td class="meta-colon"></td>
               <td class="meta-val">
-                Jumlah siswa : <strong><u>&nbsp;${escapeHtml(gradeCounts.total || '..........')}&nbsp;</u></strong> siswa
+                Jumlah siswa : <u>&nbsp;${escapeHtml(gradeCounts.total || '..........')}&nbsp;</u> siswa
               </td>
             </tr>
           </table>
@@ -644,12 +647,13 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
             color-adjust: exact !important;
           }
           body {
-            font-family: 'Times New Roman', Times, serif;
+            font-family: Arial, Helvetica, sans-serif;
             color: #000000;
             margin: 0;
             padding: 0;
             background: #e2e8f0;
             font-size: 10.5pt;
+            font-weight: normal;
           }
           .instrument-page {
             width: ${isF4 ? '187mm' : '182mm'};
@@ -712,7 +716,7 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
           }
           .doc-title {
             text-align: center;
-            font-weight: bold;
+            font-weight: normal;
             font-size: 11.5pt;
             line-height: 1.3;
             margin-bottom: 10px;
@@ -723,10 +727,12 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
             border-collapse: collapse;
             margin-bottom: 10px;
             font-size: 10.5pt;
+            font-weight: normal;
           }
           .meta-table td {
             padding: 2px 0;
             vertical-align: top;
+            font-weight: normal;
           }
           .meta-key { width: 125px; }
           .meta-colon { width: 14px; text-align: center; }
@@ -737,18 +743,20 @@ export const ExamInstrumentView: React.FC<ExamInstrumentViewProps> = ({
             border-collapse: collapse;
             margin-bottom: 12px;
             font-size: 10pt;
+            font-weight: normal;
           }
           .main-table th, .main-table td {
             border: 1px solid #000000;
             padding: 4px 6px;
+            font-weight: normal;
           }
           .main-table th {
-            font-weight: bold;
+            font-weight: normal;
             background-color: #f8fafc !important;
           }
           .col-no { text-align: center; }
           .col-label { }
-          .col-check { text-align: center; font-weight: bold; font-size: 11pt; }
+          .col-check { text-align: center; font-weight: normal; font-size: 11pt; }
           .col-ket { font-size: 9.5pt; }
           .notes-block {
             margin-top: 8px;
@@ -1864,7 +1872,531 @@ const handlePrintDaftarHadirSemuaMapel = () => {
     );
   };
 
+  const INDO_MONTH_NAMES = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+  ];
+
+  const parseDatePartsIndo = (dateStr?: string, fallbackDayDate?: string) => {
+    let dayName = '';
+    let dateNum = '';
+    let month = '';
+    let year = '';
+    if (dateStr) {
+      const parts = dateStr.split('-').map(Number);
+      if (parts.length === 3 && !parts.some(isNaN)) {
+        year = String(parts[0]);
+        month = INDO_MONTH_NAMES[parts[1] - 1] || '';
+        dateNum = String(parts[2]);
+      }
+    }
+    if (fallbackDayDate) {
+      const commaParts = fallbackDayDate.split(',');
+      if (commaParts.length >= 2) {
+        dayName = commaParts[0].trim();
+        if (!dateNum) {
+          const rest = commaParts.slice(1).join(',').trim().split(/\s+/);
+          if (rest.length >= 3) {
+            dateNum = rest[0] || '';
+            month = rest[1] || '';
+            year = rest[2] || '';
+          }
+        }
+      }
+    }
+    return { dayName, dateNum, month, year };
+  };
+
+  const resolveBeritaAcaraData = (options: {
+    subjectName: string;
+    sched?: ExamScheduleItem;
+    fallbackDayDate?: string;
+    fallbackTimeRange?: string;
+    fallbackRoom?: string;
+    fallbackSupervisor?: string;
+    preferPerSubjectAuto?: boolean;
+  }) => {
+    const classStudents = accessibleStudents.filter(
+      (s) => s.className === subMenuClass && s.status === 'aktif'
+    );
+    const total = classStudents.length;
+    const absent = Math.max(0, Math.min(total, Number(baAbsentCount) || 0));
+    const present = Math.max(0, total - absent);
+
+    const parsedDate = parseDatePartsIndo(options.sched?.date, options.fallbackDayDate);
+    const autoDay = options.sched?.dayName || parsedDate.dayName || '';
+    const autoDateNum = parsedDate.dateNum || '';
+    const autoMonth = parsedDate.month || '';
+    const autoYear = parsedDate.year || '';
+
+    let autoTimeStart = options.sched?.timeStart || '';
+    let autoTimeEnd = options.sched?.timeEnd || '';
+    if (!autoTimeStart && options.fallbackTimeRange) {
+      const m = options.fallbackTimeRange.match(/(\d{1,2}[:.]\d{2})\s*[-–s.d]+\s*(\d{1,2}[:.]\d{2})/i);
+      if (m) {
+        autoTimeStart = m[1];
+        autoTimeEnd = m[2];
+      }
+    }
+    autoTimeStart = (autoTimeStart || '07:30').replace(':', '.');
+    autoTimeEnd = (autoTimeEnd || '09:00').replace(':', '.');
+
+    const autoMadrasah = draft.madrasahName || settings.schoolName || 'MI Islamiyah Rowosari';
+    const autoRoom =
+      options.sched?.room ||
+      options.fallbackRoom ||
+      examConfigs[examType]?.defaultRoom ||
+      'Ruang 01';
+    const rawSupervisor =
+      options.sched?.supervisor || options.fallbackSupervisor || '';
+    const autoSupName =
+      rawSupervisor && !rawSupervisor.includes('....') ? rawSupervisor : '';
+    const matchedSupTeacher = autoSupName
+      ? teachers.find(
+          (t) => t.name.trim().toLowerCase() === autoSupName.trim().toLowerCase()
+        )
+      : undefined;
+    const autoSupNip =
+      matchedSupTeacher?.nip && matchedSupTeacher.nip !== '-'
+        ? matchedSupTeacher.nip
+        : '';
+
+    const heading =
+      draft.beritaAcaraHeading !== undefined
+        ? draft.beritaAcaraHeading
+        : 'BERITA ACARA PELAKSANAAN';
+    const subtitle =
+      draft.beritaAcaraSubtitle !== undefined
+        ? draft.beritaAcaraSubtitle
+        : 'PENILAIAN AKHIR SEMESTER DAN ASSEMEN SUMATIF AKHIR SEMESTER';
+    const academicYear = draft.academicYearLabel || 'TAHUN PELAJARAN 2026/2027';
+    const examLabel =
+      draft.beritaAcaraExamLabel !== undefined
+        ? draft.beritaAcaraExamLabel
+        : 'PAS/SAS';
+    const condition =
+      draft.beritaAcaraCondition !== undefined
+        ? draft.beritaAcaraCondition
+        : 'dalam keadaan baik';
+    const fn1 =
+      draft.beritaAcaraFootnote1 !== undefined
+        ? draft.beritaAcaraFootnote1
+        : 'Diisi dengan mata pelajaran pada waktu itu.';
+    const fn2Title =
+      draft.beritaAcaraFootnote2Title !== undefined
+        ? draft.beritaAcaraFootnote2Title
+        : 'Diisi apabila terjadi antara lain hal-hal sebagai berikut :';
+    const fn2Item1 =
+      draft.beritaAcaraFootnote2Item1 !== undefined
+        ? draft.beritaAcaraFootnote2Item1
+        : 'Ketidaksesuaian perangkat soal yang diterima.';
+    const fn2Item2 =
+      draft.beritaAcaraFootnote2Item2 !== undefined
+        ? draft.beritaAcaraFootnote2Item2
+        : `Ketidaksesuaian jumlah peserta ${examLabel} yang hadir (alasan ketidakhadiran).`;
+    const fn2Item3 =
+      draft.beritaAcaraFootnote2Item3 !== undefined
+        ? draft.beritaAcaraFootnote2Item3
+        : `Pelanggaran tata tertib oleh peserta ${examLabel} dan lain-lain.`;
+
+    const fillMode = draft.beritaAcaraFillMode || 'blanko';
+    const isBlanko = fillMode === 'blanko';
+    const perSubject = Boolean(options.preferPerSubjectAuto);
+
+    const pick = (manual: string | undefined, auto: string) => {
+      if (isBlanko) return '';
+      if (manual !== undefined && manual.trim() !== '') return manual.trim();
+      return auto;
+    };
+
+    const pickPerSubject = (manual: string | undefined, auto: string) => {
+      if (isBlanko) return '';
+      if (!perSubject && manual !== undefined && manual.trim() !== '') {
+        return manual.trim();
+      }
+      return auto;
+    };
+
+    return {
+      fillMode,
+      heading,
+      subtitle,
+      academicYear,
+      examLabel,
+      condition,
+      fn1,
+      fn2Title,
+      fn2Item1,
+      fn2Item2,
+      fn2Item3,
+      day: pickPerSubject(draft.beritaAcaraDay, autoDay),
+      dateNum: pickPerSubject(draft.beritaAcaraDateNum, autoDateNum),
+      month: pickPerSubject(draft.beritaAcaraMonth, autoMonth),
+      year: pickPerSubject(draft.beritaAcaraYear, autoYear),
+      timeStart: pickPerSubject(draft.beritaAcaraTimeStart, autoTimeStart),
+      timeEnd: pickPerSubject(draft.beritaAcaraTimeEnd, autoTimeEnd),
+      madrasah: pick(undefined, autoMadrasah),
+      room: pickPerSubject(draft.beritaAcaraRoom, autoRoom),
+      className: pick(draft.beritaAcaraClass, subMenuClass),
+      total: pick(draft.beritaAcaraTotalStudents, String(total)),
+      absent: pick(draft.beritaAcaraAbsentStudents, String(absent)),
+      present: pick(draft.beritaAcaraPresentStudents, String(present)),
+      subject: pickPerSubject(draft.beritaAcaraSubject, options.subjectName),
+      copies: pick(
+        draft.beritaAcaraCopies,
+        total > 0 ? String(total + 2) : ''
+      ),
+      notes: isBlanko ? '' : draft.beritaAcaraNotes || '',
+      supervisorName: pickPerSubject(draft.beritaAcaraSupervisorName, autoSupName),
+      supervisorNip: pickPerSubject(draft.beritaAcaraSupervisorNip, autoSupNip),
+    };
+  };
+
+  const buildBeritaAcaraNotesLines = (notesText: string): string[] => {
+    const clean = (notesText || '').trim();
+    if (!clean) return ['', '', '', '', ''];
+    const rawLines = clean.split(/\r?\n/);
+    const wrapped: string[] = [];
+    rawLines.forEach((line) => {
+      const words = line.trim().split(/\s+/).filter(Boolean);
+      if (words.length === 0) {
+        wrapped.push('');
+        return;
+      }
+      let current = '';
+      words.forEach((w) => {
+        if ((current + ' ' + w).trim().length > 82) {
+          wrapped.push(current.trim());
+          current = w;
+        } else {
+          current = (current + ' ' + w).trim();
+        }
+      });
+      if (current) wrapped.push(current);
+    });
+    while (wrapped.length < 5) wrapped.push('');
+    return wrapped.slice(0, 5);
+  };
+
+  const buildBeritaAcaraPageHtml = (
+    data: ReturnType<typeof resolveBeritaAcaraData>,
+    origin: string
+  ): string => {
+    const slot = (val: string, minWidthPx: number, align: 'center' | 'left' = 'center') =>
+      `<span style="display:inline-block;min-width:${minWidthPx}px;border-bottom:1.4px dotted #000000;text-align:${align};padding:0 4px;line-height:1.18;vertical-align:baseline;">${
+        val ? escapeHtml(val) : '&nbsp;'
+      }</span>`;
+
+    const notesLines = buildBeritaAcaraNotesLines(data.notes);
+    const notesHtml = notesLines
+      .map(
+        (ln, i) => `
+        <div style="border-bottom:1.4px dotted #000000;min-height:22px;line-height:22px;padding:0 4px;${
+          i === 4 ? 'width:90%;' : 'width:100%;'
+        }font-size:11pt;color:#000000;">${ln ? escapeHtml(ln) : '&nbsp;'}</div>
+      `
+      )
+      .join('');
+
+    return `
+      <div style="font-family:'Times New Roman',Times,serif;color:#000000;font-size:11pt;line-height:1.48;background:#ffffff;">
+        ${buildOfficialKopHtml(origin, { compact: false })}
+
+        <div style="text-align:center;font-weight:bold;text-transform:uppercase;margin:6px 0 14px 0;line-height:1.32;font-size:11.5pt;color:#000000;">
+          <div>${escapeHtml(data.heading)}</div>
+          <div>${escapeHtml(data.subtitle)}</div>
+          <div>${escapeHtml(data.academicYear)}</div>
+        </div>
+
+        <div style="margin-bottom:6px;line-height:1.85;text-align:left;">
+          <div>Pada hari ini ${slot(data.day, 128)} tanggal ${slot(data.dateNum, 128)} bulan ${slot(data.month, 152)}</div>
+          <div>Tahun ${slot(data.year, 285)}</div>
+        </div>
+
+        <table style="width:100%;border-collapse:collapse;border:none;margin:0 0 6px 0;">
+          <tbody>
+            <tr>
+              <td style="width:24px;vertical-align:top;border:none;padding:2px 0;background:transparent;font-size:11pt;">a.</td>
+              <td style="vertical-align:top;border:none;padding:2px 0;background:transparent;font-size:11pt;">
+                <div style="line-height:1.7;">
+                  Telah diselenggarakan ${escapeHtml(data.examLabel)} dari pukul ${slot(data.timeStart, 95)} WIB s.d pukul ${slot(data.timeEnd, 95)} WIB
+                </div>
+                <table style="width:calc(100% - 14px);margin:4px 0 2px 14px;border-collapse:collapse;border:none;">
+                  <tbody>
+                    <tr>
+                      <td style="width:235px;border:none;padding:3px 0;background:transparent;font-size:11pt;">Pada Madrasah</td>
+                      <td style="width:16px;text-align:center;border:none;padding:3px 0;background:transparent;font-size:11pt;">:</td>
+                      <td style="border:none;padding:3px 0;background:transparent;font-size:11pt;">${slot(data.madrasah, 285, 'left')}</td>
+                    </tr>
+                    <tr>
+                      <td style="border:none;padding:3px 0;background:transparent;font-size:11pt;">Ruang / Kelas</td>
+                      <td style="text-align:center;border:none;padding:3px 0;background:transparent;font-size:11pt;">:</td>
+                      <td style="border:none;padding:3px 0;background:transparent;font-size:11pt;">${slot(data.room, 110)} ( ${slot(data.className, 145)} )</td>
+                    </tr>
+                    <tr>
+                      <td style="border:none;padding:3px 0;background:transparent;font-size:11pt;">Jumlah Peserta yang Seharusnya</td>
+                      <td style="text-align:center;border:none;padding:3px 0;background:transparent;font-size:11pt;">:</td>
+                      <td style="border:none;padding:3px 0;background:transparent;font-size:11pt;">${slot(data.total, 110)} &nbsp;orang</td>
+                    </tr>
+                    <tr>
+                      <td style="border:none;padding:3px 0;background:transparent;font-size:11pt;">Jumlah Peserta yang Tidak Hadir</td>
+                      <td style="text-align:center;border:none;padding:3px 0;background:transparent;font-size:11pt;">:</td>
+                      <td style="border:none;padding:3px 0;background:transparent;font-size:11pt;">${slot(data.absent, 110)} &nbsp;orang</td>
+                    </tr>
+                    <tr>
+                      <td style="border:none;padding:3px 0;background:transparent;font-size:11pt;">Jumlah Peserta yang Hadir</td>
+                      <td style="text-align:center;border:none;padding:3px 0;background:transparent;font-size:11pt;">:</td>
+                      <td style="border:none;padding:3px 0;background:transparent;font-size:11pt;">${slot(data.present, 110)} &nbsp;orang</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="width:24px;vertical-align:top;border:none;padding:4px 0 2px 0;background:transparent;font-size:11pt;">b.</td>
+              <td style="vertical-align:top;border:none;padding:4px 0 2px 0;background:transparent;font-size:11pt;line-height:1.75;text-align:justify;">
+                <div>
+                  Telah dibuka sampul Naskah Soal ${escapeHtml(data.examLabel)} untuk Mata Pelajaran ${slot(data.subject, 215)} *) di Ruang ${escapeHtml(data.examLabel)} dengan disaksikan oleh para peserta, yang berisi Naskah Soal ${escapeHtml(data.examLabel)} sebanyak ${slot(data.copies, 130)} eksemplar.
+                </div>
+                <div style="margin-top:2px;">
+                  Sebelum dibuka sampul Naskah Soal ${escapeHtml(data.examLabel)} tersebut ${escapeHtml(data.condition)}.
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="width:24px;vertical-align:top;border:none;padding:4px 0 2px 0;background:transparent;font-size:11pt;">c.</td>
+              <td style="vertical-align:top;border:none;padding:4px 0 2px 0;background:transparent;font-size:11pt;">
+                <div>Catatan selama pelaksanaan ${escapeHtml(data.examLabel)} **)</div>
+                <div style="margin-top:3px;">${notesHtml}</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style="margin:6px 0 8px 0;font-size:11pt;">Berita Acara ini dibuat dengan sesungguhnya.</div>
+
+        <div style="display:flex;justify-content:flex-end;margin:4px 8px 10px 0;page-break-inside:avoid;break-inside:avoid;">
+          <div style="width:335px;font-size:11pt;">
+            <div style="text-align:center;font-weight:bold;padding-left:44px;margin-bottom:4px;">Yang membuat berita acara</div>
+            <div style="margin-bottom:38px;">Pengawas</div>
+            <table style="width:100%;border-collapse:collapse;border:none;margin:0;">
+              <tbody>
+                <tr>
+                  <td style="width:20px;border:none;padding:3px 0;background:transparent;font-size:11pt;">1.</td>
+                  <td style="width:105px;border:none;padding:3px 0;background:transparent;font-size:11pt;">Tanda Tangan</td>
+                  <td style="width:14px;text-align:center;border:none;padding:3px 0;background:transparent;font-size:11pt;">:</td>
+                  <td style="border:none;padding:3px 0;background:transparent;font-size:11pt;">${slot('', 165)}</td>
+                </tr>
+                <tr>
+                  <td style="border:none;padding:3px 0;background:transparent;font-size:11pt;">2.</td>
+                  <td style="border:none;padding:3px 0;background:transparent;font-size:11pt;">Nama</td>
+                  <td style="text-align:center;border:none;padding:3px 0;background:transparent;font-size:11pt;">:</td>
+                  <td style="border:none;padding:3px 0;background:transparent;font-size:11pt;">${slot(data.supervisorName, 165, 'left')}</td>
+                </tr>
+                <tr>
+                  <td style="border:none;padding:3px 0;background:transparent;font-size:11pt;">3.</td>
+                  <td style="border:none;padding:3px 0;background:transparent;font-size:11pt;">NIP</td>
+                  <td style="text-align:center;border:none;padding:3px 0;background:transparent;font-size:11pt;">:</td>
+                  <td style="border:none;padding:3px 0;background:transparent;font-size:11pt;">${slot(data.supervisorNip, 165, 'left')}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="margin-top:8px;font-size:10pt;line-height:1.42;page-break-inside:avoid;break-inside:avoid;">
+          <div>Keterangan :</div>
+          <table style="width:100%;border-collapse:collapse;border:none;margin:2px 0 0 0;">
+            <tbody>
+              <tr>
+                <td style="width:36px;vertical-align:top;border:none;padding:1px 0;background:transparent;font-size:10pt;">*)</td>
+                <td style="vertical-align:top;border:none;padding:1px 0;background:transparent;font-size:10pt;">${escapeHtml(data.fn1)}</td>
+              </tr>
+              <tr>
+                <td style="vertical-align:top;border:none;padding:1px 0;background:transparent;font-size:10pt;">**)</td>
+                <td style="vertical-align:top;border:none;padding:1px 0;background:transparent;font-size:10pt;">
+                  <div>${escapeHtml(data.fn2Title)}</div>
+                  <table style="width:100%;border-collapse:collapse;border:none;margin:1px 0 0 8px;">
+                    <tbody>
+                      <tr>
+                        <td style="width:24px;vertical-align:top;border:none;padding:1px 0;background:transparent;font-size:10pt;">1).</td>
+                        <td style="vertical-align:top;border:none;padding:1px 0;background:transparent;font-size:10pt;">${escapeHtml(data.fn2Item1)}</td>
+                      </tr>
+                      <tr>
+                        <td style="vertical-align:top;border:none;padding:1px 0;background:transparent;font-size:10pt;">2).</td>
+                        <td style="vertical-align:top;border:none;padding:1px 0;background:transparent;font-size:10pt;">${escapeHtml(data.fn2Item2)}</td>
+                      </tr>
+                      <tr>
+                        <td style="vertical-align:top;border:none;padding:1px 0;background:transparent;font-size:10pt;">3).</td>
+                        <td style="vertical-align:top;border:none;padding:1px 0;background:transparent;font-size:10pt;">${escapeHtml(data.fn2Item3)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  };
+
+  const buildBeritaAcaraStandaloneHtml = (docTitle: string, pagesBodyHtml: string) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    return `
+      <!DOCTYPE html>
+      <html lang="id">
+      <head>
+        <base href="${origin}/" />
+        <title>${escapeHtml(docTitle)}</title>
+        <style>
+          @page {
+            size: 215mm 330mm;
+            margin: 10mm 14mm;
+          }
+          *, *::before, *::after {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+          html, body {
+            width: 100%;
+            font-family: 'Times New Roman', Times, serif;
+            color: #000000;
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+          }
+          .ba-sheet {
+            width: 187mm;
+            min-height: 306mm;
+            margin: 8mm auto;
+            padding: 0;
+            background: #ffffff;
+            page-break-after: always;
+            break-after: page;
+          }
+          .ba-sheet:last-child {
+            page-break-after: auto;
+            break-after: auto;
+          }
+          @media print {
+            html, body {
+              width: 100% !important;
+              height: auto !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+            }
+            .ba-sheet {
+              width: 100% !important;
+              max-width: 100% !important;
+              min-height: auto !important;
+              margin: 0 !important;
+              padding: 0 !important;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        ${pagesBodyHtml}
+      </body>
+      </html>
+    `;
+  };
+
   const handlePrintBeritaAcara = () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const sched = accessibleExamSchedules.find(
+      (s) => s.examType === examType && s.className === subMenuClass && s.subject === currentSubjectData.subject
+    );
+    const data = resolveBeritaAcaraData({
+      subjectName: currentSubjectData.subject,
+      sched,
+      fallbackDayDate: currentSubjectData.dayDate,
+    });
+    const pageHtml = `<div class="ba-sheet">${buildBeritaAcaraPageHtml(data, origin)}</div>`;
+    printHtmlDocument(
+      buildBeritaAcaraStandaloneHtml(`Berita Acara ${examType} - ${currentSubjectData.subject}`, pageHtml)
+    );
+  };
+
+  const handleDownloadBeritaAcaraPdf = async () => {
+    setDownloadingBeritaAcaraPdf(true);
+    try {
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      const sched = accessibleExamSchedules.find(
+        (s) => s.examType === examType && s.className === subMenuClass && s.subject === currentSubjectData.subject
+      );
+      const data = resolveBeritaAcaraData({
+        subjectName: currentSubjectData.subject,
+        sched,
+        fallbackDayDate: currentSubjectData.dayDate,
+      });
+      const pdfDocHtml = `
+        <!DOCTYPE html>
+        <html lang="id">
+        <head>
+          <base href="${origin}/" />
+          <style>
+            * { box-sizing: border-box; }
+            html, body { margin: 0; padding: 0; background: #ffffff; font-family: 'Times New Roman', Times, serif; color: #000000; }
+            .pdf-sheet { width: 215mm; min-height: 330mm; padding: 10mm 14mm; background: #ffffff; }
+          </style>
+        </head>
+        <body>
+          <div class="pdf-sheet">${buildBeritaAcaraPageHtml(data, origin)}</div>
+        </body>
+        </html>
+      `;
+      const safeSubj = (data.subject || currentSubjectData.subject).replace(/[^a-zA-Z0-9]+/g, '_');
+      const safeCls = subMenuClass.replace(/[^a-zA-Z0-9]+/g, '_');
+      await downloadF4PortraitPdf(pdfDocHtml, `Berita_Acara_${examType}_${safeCls}_${safeSubj}`);
+      showSuccessToast(`PDF Berita Acara (F4 Portrait 215 x 330 mm) berhasil diunduh.`);
+    } catch (err) {
+      console.error('Gagal membuat PDF Berita Acara:', err);
+      showErrorToast('Gagal mengunduh PDF Berita Acara. Silakan coba lagi.');
+    } finally {
+      setDownloadingBeritaAcaraPdf(false);
+    }
+  };
+
+  const handlePrintBeritaAcaraSemuaMapel = () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const subjects = getClassSubjectsList(subMenuClass);
+    if (subjects.length === 0) {
+      showWarningToast(`Tidak ditemukan mata pelajaran untuk ${subMenuClass}.`);
+      return;
+    }
+
+    const pagesHtml = subjects
+      .map((subj) => {
+        const sched = accessibleExamSchedules.find(
+          (s) => s.examType === examType && s.className === subMenuClass && s.subject === subj.subject
+        );
+        const data = resolveBeritaAcaraData({
+          subjectName: subj.subject,
+          sched,
+          fallbackDayDate: subj.dayDate,
+          fallbackTimeRange: subj.timeRange,
+          fallbackRoom: subj.room,
+          fallbackSupervisor: subj.supervisor,
+          preferPerSubjectAuto: true,
+        });
+        return `<div class="ba-sheet">${buildBeritaAcaraPageHtml(data, origin)}</div>`;
+      })
+      .join('');
+
+    printHtmlDocument(
+      buildBeritaAcaraStandaloneHtml(
+        `Berita Acara Semua Mapel ${examType} - ${subMenuClass} (${subjects.length} Mapel)`,
+        pagesHtml
+      )
+    );
+  };
+
+  const handleCopyScheduleToBeritaAcaraEdit = () => {
     const classStudents = accessibleStudents.filter(
       (s) => s.className === subMenuClass && s.status === 'aktif'
     );
@@ -1874,106 +2406,64 @@ const handlePrintDaftarHadirSemuaMapel = () => {
     const sched = accessibleExamSchedules.find(
       (s) => s.examType === examType && s.className === subMenuClass && s.subject === currentSubjectData.subject
     );
-    const chairName = examConfigs[examType]?.committeeChair || draft.committeeChair || 'Ahmad Mustofa, S.Pd';
-    const chairNip = examConfigs[examType]?.committeeChairNip || draft.committeeChairNip || '';
+    const parsed = parseDatePartsIndo(sched?.date, currentSubjectData.dayDate);
+    const supName = sched?.supervisor || '';
+    const matchedSup = supName
+      ? teachers.find((t) => t.name.trim().toLowerCase() === supName.trim().toLowerCase())
+      : undefined;
 
-    printSubMenuDocument(
-      `BERITA ACARA PELAKSANAAN ${examType}`,
-      `
-        <div style="border:1px solid #cbd5e1;border-radius:8px;padding:14px 16px;line-height:1.7;font-size:11px;">
-          <p style="margin:0 0 10px 0;">Pada hari ini <strong>${escapeHtml(currentSubjectData.dayDate || '....................')}</strong> bertempat di <strong>${escapeHtml(draft.madrasahName)}</strong>, telah dilaksanakan <strong>${examType} (${escapeHtml(draft.academicYearLabel)})</strong> dengan rincian sebagai berikut:</p>
-          <table>
-            <tbody>
-              <tr><td style="width:190px;"><strong>Mata Pelajaran</strong></td><td><strong>${escapeHtml(currentSubjectData.subject)}</strong></td></tr>
-              <tr><td><strong>Kelas / Ruang Ujian</strong></td><td>${escapeHtml(subMenuClass)} / ${escapeHtml(sched?.room || examConfigs[examType].defaultRoom)}</td></tr>
-              <tr><td><strong>Waktu Pelaksanaan</strong></td><td>${escapeHtml(sched ? `${sched.timeStart} - ${sched.timeEnd} WIB` : '07:30 - 09:00 WIB')}</td></tr>
-              <tr><td><strong>Jumlah Peserta Seharusnya</strong></td><td><strong>${total}</strong> siswa</td></tr>
-              <tr><td><strong>Jumlah Peserta Hadir</strong></td><td><strong>${present}</strong> siswa</td></tr>
-              <tr><td><strong>Jumlah Peserta Tidak Hadir</strong></td><td><strong>${absent}</strong> siswa (${escapeHtml(baAbsentNames || '-')})</td></tr>
-              <tr><td><strong>Catatan Selama Ujian</strong></td><td>${escapeHtml(draft.beritaAcaraNotes || 'Berjalan tertib dan lancar.')}</td></tr>
-            </tbody>
-          </table>
-          <p style="margin:8px 0 0 0;">Demikian berita acara pelaksanaan ujian ini dibuat dengan sesungguhnya untuk digunakan sebagaimana mestinya.</p>
-        </div>
-        <p style="text-align:right;margin:0 24px 6px 0;">Rowosari, ${formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA'))}</p><div class="signs">
-          <div class="sign-box">
-            <p style="margin:0;">Pengawas Ruang,</p>
-            <div class="sign-space"></div>
-            <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(sched?.supervisor || '( .................................... )')}</p>
-          </div>
-          <div class="sign-box">
-            <p style="margin:0;">Ketua Panitia ${examType},</p>
-            <div class="sign-space"></div>
-            <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(chairName)}</p>
-            ${chairNip ? `<p style="margin:2px 0 0 0;font-size:9.5px;">NIP. ${escapeHtml(chairNip)}</p>` : ''}
-          </div>
-        </div>
-      `
-    );
+    setDraft((prev) => ({
+      ...prev,
+      beritaAcaraFillMode: 'auto',
+      beritaAcaraDay: sched?.dayName || parsed.dayName || '',
+      beritaAcaraDateNum: parsed.dateNum || '',
+      beritaAcaraMonth: parsed.month || '',
+      beritaAcaraYear: parsed.year || '',
+      beritaAcaraTimeStart: (sched?.timeStart || '07:30').replace(':', '.'),
+      beritaAcaraTimeEnd: (sched?.timeEnd || '09:00').replace(':', '.'),
+      beritaAcaraRoom: sched?.room || examConfigs[examType]?.defaultRoom || 'Ruang 01',
+      beritaAcaraClass: subMenuClass,
+      beritaAcaraTotalStudents: String(total),
+      beritaAcaraAbsentStudents: String(absent),
+      beritaAcaraPresentStudents: String(present),
+      beritaAcaraSubject: currentSubjectData.subject,
+      beritaAcaraCopies: total > 0 ? String(total + 2) : '',
+      beritaAcaraSupervisorName: supName,
+      beritaAcaraSupervisorNip: matchedSup?.nip && matchedSup.nip !== '-' ? matchedSup.nip : '',
+    }));
+    showSuccessToast(`Data jadwal & kelas ${subMenuClass} disalin ke kolom edit Berita Acara.`);
   };
 
-  const handlePrintBeritaAcaraSemuaMapel = () => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const classStudents = accessibleStudents.filter(
-      (s) => s.className === subMenuClass && s.status === 'aktif'
-    );
-    const total = classStudents.length;
-    const absent = Math.max(0, Math.min(total, Number(baAbsentCount) || 0));
-    const present = Math.max(0, total - absent);
-
-    const subjects = getClassSubjectsList(subMenuClass);
-    if (subjects.length === 0) {
-      showWarningToast(`Tidak ditemukan mata pelajaran untuk ${subMenuClass}.`);
-      return;
-    }
-
-    const chairName = examConfigs[examType]?.committeeChair || draft.committeeChair || 'Ahmad Mustofa, S.Pd';
-    const chairNip = examConfigs[examType]?.committeeChairNip || draft.committeeChairNip || '';
-
-    const pagesHtml = subjects
-      .map((subj) => {
-        return `
-        <div class="sub-doc-page">
-          <div>
-            ${buildMadrasahKopHtml(origin, `BERITA ACARA PELAKSANAAN ${examType}`, true)}
-            <div style="border:1px solid #cbd5e1;border-radius:8px;padding:12px 14px;line-height:1.65;font-size:10.5px;">
-              <p style="margin:0 0 8px 0;">Pada hari ini <strong>${escapeHtml(subj.dayDate || '....................')}</strong> bertempat di <strong>${escapeHtml(draft.madrasahName)}</strong>, telah dilaksanakan <strong>${examType} (${escapeHtml(draft.academicYearLabel)})</strong> dengan rincian sebagai berikut:</p>
-              <table>
-                <tbody>
-                  <tr><td style="width:190px;"><strong>Mata Pelajaran</strong></td><td><strong>${escapeHtml(subj.subject)}</strong></td></tr>
-                  <tr><td><strong>Kelas / Ruang Ujian</strong></td><td>${escapeHtml(subMenuClass)} / ${escapeHtml(subj.room)}</td></tr>
-                  <tr><td><strong>Waktu Pelaksanaan</strong></td><td>${escapeHtml(subj.timeRange || '07:30 - 09:00 WIB')}</td></tr>
-                  <tr><td><strong>Jumlah Peserta Seharusnya</strong></td><td><strong>${total}</strong> siswa</td></tr>
-                  <tr><td><strong>Jumlah Peserta Hadir</strong></td><td><strong>${present}</strong> siswa</td></tr>
-                  <tr><td><strong>Jumlah Peserta Tidak Hadir</strong></td><td><strong>${absent}</strong> siswa (${escapeHtml(baAbsentNames || '-')})</td></tr>
-                  <tr><td><strong>Catatan Selama Ujian</strong></td><td>${escapeHtml(draft.beritaAcaraNotes || 'Berjalan tertib, aman, dan lancar.')}</td></tr>
-                </tbody>
-              </table>
-              <p style="margin:6px 0 0 0;">Demikian berita acara pelaksanaan ujian ini dibuat dengan sesungguhnya untuk digunakan sebagaimana mestinya.</p>
-            </div>
-          </div>
-          <p style="text-align:right;margin:0 24px 6px 0;">Rowosari, ${formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA'))}</p><div class="signs">
-            <div class="sign-box">
-              <p style="margin:0;">Pengawas Ruang,</p>
-              <div class="sign-space"></div>
-              <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(subj.supervisor)}</p>
-            </div>
-            <div class="sign-box">
-              <p style="margin:0;">Ketua Panitia ${examType},</p>
-              <div class="sign-space"></div>
-              <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(chairName)}</p>
-              ${chairNip ? `<p style="margin:2px 0 0 0;font-size:9.5px;">NIP. ${escapeHtml(chairNip)}</p>` : ''}
-            </div>
-          </div>
-        </div>
-      `;
-      })
-      .join('');
-
-    printMultiPageSubMenuDocument(
-      `Berita Acara Semua Mapel ${examType} - ${subMenuClass} (${subjects.length} Mapel)`,
-      pagesHtml
-    );
+  const handleResetBeritaAcaraFormat = () => {
+    setDraft((prev) => ({
+      ...prev,
+      beritaAcaraFillMode: 'blanko',
+      beritaAcaraHeading: 'BERITA ACARA PELAKSANAAN',
+      beritaAcaraSubtitle: 'PENILAIAN AKHIR SEMESTER DAN ASSEMEN SUMATIF AKHIR SEMESTER',
+      beritaAcaraExamLabel: 'PAS/SAS',
+      beritaAcaraDay: '',
+      beritaAcaraDateNum: '',
+      beritaAcaraMonth: '',
+      beritaAcaraYear: '',
+      beritaAcaraTimeStart: '',
+      beritaAcaraTimeEnd: '',
+      beritaAcaraRoom: '',
+      beritaAcaraClass: '',
+      beritaAcaraTotalStudents: '',
+      beritaAcaraAbsentStudents: '',
+      beritaAcaraPresentStudents: '',
+      beritaAcaraSubject: '',
+      beritaAcaraCopies: '',
+      beritaAcaraCondition: 'dalam keadaan baik',
+      beritaAcaraSupervisorName: '',
+      beritaAcaraSupervisorNip: '',
+      beritaAcaraFootnote1: 'Diisi dengan mata pelajaran pada waktu itu.',
+      beritaAcaraFootnote2Title: 'Diisi apabila terjadi antara lain hal-hal sebagai berikut :',
+      beritaAcaraFootnote2Item1: 'Ketidaksesuaian perangkat soal yang diterima.',
+      beritaAcaraFootnote2Item2: 'Ketidaksesuaian jumlah peserta PAS/SAS yang hadir (alasan ketidakhadiran).',
+      beritaAcaraFootnote2Item3: 'Pelanggaran tata tertib oleh peserta PAS/SAS dan lain-lain.',
+    }));
+    showSuccessToast('Format Berita Acara dikembalikan ke blangko standar sesuai gambar.');
   };
 
   const handlePrintDaftarNilai = () => {
@@ -2656,37 +3146,20 @@ const handlePrintDaftarHadirSemuaMapel = () => {
         </div>
 
         <!-- 4. Berita Acara -->
-        <div class="doc-section">
-          <div>
-            ${buildMadrasahKopHtml(origin, `BERITA ACARA PELAKSANAAN ${examType}`, true)}
-            <div style="border:1px solid #cbd5e1;border-radius:8px;padding:14px 16px;line-height:1.7;font-size:11px;">
-              <p style="margin:0 0 10px 0;">Pada hari ini <strong>${escapeHtml(currentSubjectData.dayDate || '....................')}</strong> bertempat di <strong>${escapeHtml(draft.madrasahName)}</strong>, telah dilaksanakan <strong>${examType} (${escapeHtml(draft.academicYearLabel)})</strong> dengan rincian sebagai berikut:</p>
-              <table>
-                <tbody>
-                  <tr><td style="width:190px;"><strong>Mata Pelajaran</strong></td><td>${escapeHtml(currentSubjectData.subject)}</td></tr>
-                  <tr><td><strong>Kelas / Ruang Ujian</strong></td><td>${escapeHtml(subMenuClass)} / ${escapeHtml(examConfigs[examType].defaultRoom)}</td></tr>
-                  <tr><td><strong>Waktu Pelaksanaan</strong></td><td>07:30 - 09:00 WIB</td></tr>
-                  <tr><td><strong>Jumlah Peserta Seharusnya</strong></td><td><strong>${classStudents.length}</strong> siswa</td></tr>
-                  <tr><td><strong>Jumlah Peserta Hadir</strong></td><td><strong>${classStudents.length}</strong> siswa</td></tr>
-                  <tr><td><strong>Jumlah Peserta Tidak Hadir</strong></td><td><strong>0</strong> siswa</td></tr>
-                  <tr><td><strong>Catatan Selama Ujian</strong></td><td>${escapeHtml(draft.beritaAcaraNotes || 'Berjalan tertib dan lancar.')}</td></tr>
-                </tbody>
-              </table>
-              <p style="margin:8px 0 0 0;">Demikian berita acara pelaksanaan ujian ini dibuat dengan sesungguhnya untuk digunakan sebagaimana mestinya.</p>
-            </div>
-          </div>
-          <p style="text-align:right;margin:0 24px 6px 0;">Rowosari, ${formatShortIndoDate(draft.printDate || new Date().toLocaleDateString('en-CA'))}</p><div class="signs">
-            <div class="sign-box">
-              <p style="margin:0;">Pengawas Ruang,</p>
-              <div class="sign-space"></div>
-              <p style="margin:0;font-weight:bold;text-decoration:underline;">( .................................... )</p>
-            </div>
-            <div class="sign-box">
-              <p style="margin:0;">Ketua Panitia ${examType},</p>
-              <div class="sign-space"></div>
-              <p style="margin:0;font-weight:bold;text-decoration:underline;">${escapeHtml(examConfigs[examType].committeeChair)}</p>
-            </div>
-          </div>
+        <div class="doc-section" style="font-family:'Times New Roman',Times,serif;font-size:11pt;line-height:1.45;display:block;padding-bottom:0;">
+          ${buildBeritaAcaraPageHtml(
+            resolveBeritaAcaraData({
+              subjectName: currentSubjectData.subject,
+              sched: accessibleExamSchedules.find(
+                (s) =>
+                  s.examType === examType &&
+                  s.className === subMenuClass &&
+                  s.subject === currentSubjectData.subject
+              ),
+              fallbackDayDate: currentSubjectData.dayDate,
+            }),
+            origin
+          )}
         </div>
 
         <!-- 5. Daftar Nilai -->
@@ -2836,6 +3309,16 @@ const handlePrintDaftarHadirSemuaMapel = () => {
     (acc, item) => acc + (Number(item.volume) || 0) * (Number(item.hargaSatuan) || 0),
     0
   );
+
+  const beritaAcaraPreviewSched = accessibleExamSchedules.find(
+    (s) => s.examType === examType && s.className === subMenuClass && s.subject === currentSubjectData.subject
+  );
+  const beritaAcaraPreviewData = resolveBeritaAcaraData({
+    subjectName: currentSubjectData.subject,
+    sched: beritaAcaraPreviewSched,
+    fallbackDayDate: currentSubjectData.dayDate,
+  });
+  const beritaAcaraPreviewNotesLines = buildBeritaAcaraNotesLines(beritaAcaraPreviewData.notes);
 
   return (
     <div className="space-y-5">
@@ -3336,8 +3819,8 @@ const handlePrintDaftarHadirSemuaMapel = () => {
             </div>
 
             <div
-              className="bg-white shadow-lg border border-slate-300 mx-auto p-6 sm:p-8 text-black flex flex-col justify-between min-h-[820px] max-w-[720px]"
-              style={{ fontFamily: "'Times New Roman', Times, serif" }}
+              className="bg-white shadow-lg border border-slate-300 mx-auto p-6 sm:p-8 text-black flex flex-col justify-between min-h-[820px] max-w-[720px] font-normal"
+              style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
             >
               <div>
                 {/* KOP SURAT */}
@@ -3378,7 +3861,7 @@ const handlePrintDaftarHadirSemuaMapel = () => {
                 <div className="h-[3px] bg-blue-700 my-2" />
 
                 {/* JUDUL */}
-                <div className="text-center font-bold text-[13px] leading-snug uppercase my-3">
+                <div className="text-center font-normal text-[13px] leading-snug uppercase my-3">
                   <div>{draft.instrumentTitle}</div>
                   <div>{draft.academicYearLabel}</div>
                 </div>
@@ -3411,7 +3894,7 @@ const handlePrintDaftarHadirSemuaMapel = () => {
                     <tr>
                       <td className="py-0.5">Mata Pelajaran</td>
                       <td className="text-center">:</td>
-                      <td className="font-bold">{currentSubjectData.subject}</td>
+                      <td className="font-normal">{currentSubjectData.subject}</td>
                     </tr>
                     <tr>
                       <td className="py-0.5">Alamat</td>
@@ -3441,9 +3924,9 @@ const handlePrintDaftarHadirSemuaMapel = () => {
                       <td />
                       <td className="pt-0.5">
                         Jumlah siswa :{' '}
-                        <strong className="underline">
+                        <span className="underline">
                           &nbsp;{gradeCounts.total || '..........'}&nbsp;
-                        </strong>{' '}
+                        </span>{' '}
                         siswa
                       </td>
                     </tr>
@@ -3451,16 +3934,16 @@ const handlePrintDaftarHadirSemuaMapel = () => {
                 </table>
 
                 {/* TABEL KELENGKAPAN */}
-                <table className="w-full border-collapse border border-black text-[11.5px] mb-3">
+                <table className="w-full border-collapse border border-black text-[11.5px] mb-3 font-normal">
                   <thead>
                     <tr className="bg-slate-50">
-                      <th className="border border-black px-1.5 py-1 w-8 text-center">No</th>
-                      <th className="border border-black px-2 py-1 text-left w-[44%]">
+                      <th className="border border-black px-1.5 py-1 w-8 text-center font-normal">No</th>
+                      <th className="border border-black px-2 py-1 text-left w-[44%] font-normal">
                         Kelengkapan Administrasi
                       </th>
-                      <th className="border border-black px-1.5 py-1 w-11 text-center">ada</th>
-                      <th className="border border-black px-1.5 py-1 w-14 text-center">Tdk ada</th>
-                      <th className="border border-black px-2 py-1 text-left">
+                      <th className="border border-black px-1.5 py-1 w-11 text-center font-normal">ada</th>
+                      <th className="border border-black px-1.5 py-1 w-14 text-center font-normal">Tdk ada</th>
+                      <th className="border border-black px-2 py-1 text-left font-normal">
                         Ket/jumlah/ Bukti dukung
                       </th>
                     </tr>
@@ -3478,10 +3961,10 @@ const handlePrintDaftarHadirSemuaMapel = () => {
                       >
                         <td className="border border-black px-1.5 py-1 text-center">{row.no}</td>
                         <td className="border border-black px-2 py-1">{row.label}</td>
-                        <td className="border border-black px-1.5 py-1 text-center font-bold">
+                        <td className="border border-black px-1.5 py-1 text-center font-normal">
                           {row.status === 'ada' ? '✓' : ''}
                         </td>
-                        <td className="border border-black px-1.5 py-1 text-center font-bold">
+                        <td className="border border-black px-1.5 py-1 text-center font-normal">
                           {row.status === 'tidak_ada' ? '✓' : ''}
                         </td>
                         <td className="border border-black px-2 py-1 text-[11px]">
@@ -4114,44 +4597,479 @@ const handlePrintDaftarHadirSemuaMapel = () => {
                 )}
 
                 {selectedChecklistItem.subMenuKey === 'berita_acara' && (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">
-                          Jumlah Peserta Tidak Hadir
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={baAbsentCount}
-                          onChange={(e) => setBaAbsentCount(e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold"
-                        />
+                  <div className="space-y-4">
+                    {/* Mode Isian & Aksi Cepat */}
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                            Mode Isian Berita Acara
+                          </div>
+                          <p className="text-[11px] text-slate-600">
+                            Pilih Blangko Kosong (titik-titik tulis tangan sesuai contoh) atau Mode Terisi (data jadwal & hasil editan Anda).
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setDraft((prev) => ({ ...prev, beritaAcaraFillMode: 'blanko' }))}
+                            className={`px-3 py-1.5 rounded-xl text-[11px] font-black uppercase transition-all cursor-pointer ${
+                              (draft.beritaAcaraFillMode || 'blanko') === 'blanko'
+                                ? 'bg-slate-900 text-white shadow-sm'
+                                : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                            }`}
+                          >
+                            Blangko Kosong (Titik-titik)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDraft((prev) => ({ ...prev, beritaAcaraFillMode: 'auto' }))}
+                            className={`px-3 py-1.5 rounded-xl text-[11px] font-black uppercase transition-all cursor-pointer ${
+                              draft.beritaAcaraFillMode === 'auto'
+                                ? 'bg-emerald-600 text-white shadow-sm'
+                                : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                            }`}
+                          >
+                            Terisi Data & Editan
+                          </button>
+                        </div>
                       </div>
+
+                      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200">
+                        <button
+                          type="button"
+                          onClick={handleCopyScheduleToBeritaAcaraEdit}
+                          className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-black uppercase cursor-pointer"
+                        >
+                          Salin Data Jadwal & Kelas ke Kolom Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleResetBeritaAcaraFormat}
+                          className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-[11px] font-bold flex items-center space-x-1.5 cursor-pointer"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Reset Format Standar</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowBeritaAcaraPreview((v) => !v)}
+                          className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-[11px] font-bold flex items-center space-x-1.5 cursor-pointer ml-auto"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>{showBeritaAcaraPreview ? 'Sembunyikan Pratinjau' : 'Tampilkan Pratinjau'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Bagian 1: Judul, Label Ujian & Kondisi */}
+                    <div className="border border-slate-200 rounded-2xl p-3.5 space-y-3 bg-white">
+                      <div className="text-[11px] font-black uppercase tracking-wider text-slate-700">
+                        1. Edit Judul & Istilah Dokumen
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">
+                            Judul Baris 1
+                          </label>
+                          <input
+                            type="text"
+                            value={draft.beritaAcaraHeading ?? 'BERITA ACARA PELAKSANAAN'}
+                            onChange={(e) => setDraft({ ...draft, beritaAcaraHeading: e.target.value })}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">
+                            Singkatan Ujian di Teks (mis. PAS/SAS atau ASAS)
+                          </label>
+                          <input
+                            type="text"
+                            value={draft.beritaAcaraExamLabel ?? 'PAS/SAS'}
+                            onChange={(e) => setDraft({ ...draft, beritaAcaraExamLabel: e.target.value })}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">
+                            Judul Baris 2 (Nama Lengkap Kegiatan)
+                          </label>
+                          <input
+                            type="text"
+                            value={
+                              draft.beritaAcaraSubtitle ??
+                              'PENILAIAN AKHIR SEMESTER DAN ASSEMEN SUMATIF AKHIR SEMESTER'
+                            }
+                            onChange={(e) => setDraft({ ...draft, beritaAcaraSubtitle: e.target.value })}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">
+                            Judul Baris 3 (Tahun Pelajaran)
+                          </label>
+                          <input
+                            type="text"
+                            value={draft.academicYearLabel}
+                            onChange={(e) => setDraft({ ...draft, academicYearLabel: e.target.value })}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">
+                            Keterangan Kondisi Sampul Soal (Poin b)
+                          </label>
+                          <input
+                            type="text"
+                            value={draft.beritaAcaraCondition ?? 'dalam keadaan baik'}
+                            onChange={(e) => setDraft({ ...draft, beritaAcaraCondition: e.target.value })}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bagian 2: Data Waktu, Ruang, Peserta, Soal, Catatan & Pengawas */}
+                    <div className="border border-slate-200 rounded-2xl p-3.5 space-y-3 bg-white">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="text-[11px] font-black uppercase tracking-wider text-slate-700">
+                          2. Edit Isian Pelaksanaan, Peserta & Pengawas
+                        </div>
+                        {(draft.beritaAcaraFillMode || 'blanko') === 'blanko' && (
+                          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-lg">
+                            Mengetik di bagian ini otomatis mengaktifkan Mode Terisi agar tampil saat dicetak
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div>
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">Hari</label>
+                          <input
+                            type="text"
+                            placeholder="Kosong / otomatis"
+                            value={draft.beritaAcaraDay ?? ''}
+                            onChange={(e) =>
+                              setDraft({ ...draft, beritaAcaraFillMode: 'auto', beritaAcaraDay: e.target.value })
+                            }
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">Tanggal</label>
+                          <input
+                            type="text"
+                            placeholder="Kosong / otomatis"
+                            value={draft.beritaAcaraDateNum ?? ''}
+                            onChange={(e) =>
+                              setDraft({ ...draft, beritaAcaraFillMode: 'auto', beritaAcaraDateNum: e.target.value })
+                            }
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">Bulan</label>
+                          <input
+                            type="text"
+                            placeholder="Kosong / otomatis"
+                            value={draft.beritaAcaraMonth ?? ''}
+                            onChange={(e) =>
+                              setDraft({ ...draft, beritaAcaraFillMode: 'auto', beritaAcaraMonth: e.target.value })
+                            }
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">Tahun</label>
+                          <input
+                            type="text"
+                            placeholder="Kosong / otomatis"
+                            value={draft.beritaAcaraYear ?? ''}
+                            onChange={(e) =>
+                              setDraft({ ...draft, beritaAcaraFillMode: 'auto', beritaAcaraYear: e.target.value })
+                            }
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div>
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">Pukul Mulai</label>
+                          <input
+                            type="text"
+                            placeholder="07.30"
+                            value={draft.beritaAcaraTimeStart ?? ''}
+                            onChange={(e) =>
+                              setDraft({ ...draft, beritaAcaraFillMode: 'auto', beritaAcaraTimeStart: e.target.value })
+                            }
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">Pukul Selesai</label>
+                          <input
+                            type="text"
+                            placeholder="09.00"
+                            value={draft.beritaAcaraTimeEnd ?? ''}
+                            onChange={(e) =>
+                              setDraft({ ...draft, beritaAcaraFillMode: 'auto', beritaAcaraTimeEnd: e.target.value })
+                            }
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">Ruang</label>
+                          <input
+                            type="text"
+                            placeholder="Otomatis jadwal"
+                            value={draft.beritaAcaraRoom ?? ''}
+                            onChange={(e) =>
+                              setDraft({ ...draft, beritaAcaraFillMode: 'auto', beritaAcaraRoom: e.target.value })
+                            }
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">Kelas</label>
+                          <input
+                            type="text"
+                            placeholder={subMenuClass}
+                            value={draft.beritaAcaraClass ?? ''}
+                            onChange={(e) =>
+                              setDraft({ ...draft, beritaAcaraFillMode: 'auto', beritaAcaraClass: e.target.value })
+                            }
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">
+                            Peserta Seharusnya (orang)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Otomatis jumlah kelas"
+                            value={draft.beritaAcaraTotalStudents ?? ''}
+                            onChange={(e) =>
+                              setDraft({
+                                ...draft,
+                                beritaAcaraFillMode: 'auto',
+                                beritaAcaraTotalStudents: e.target.value,
+                              })
+                            }
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">
+                            Tidak Hadir (orang)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder={baAbsentCount || '0'}
+                            value={draft.beritaAcaraAbsentStudents ?? ''}
+                            onChange={(e) => {
+                              setBaAbsentCount(e.target.value);
+                              setDraft({
+                                ...draft,
+                                beritaAcaraFillMode: 'auto',
+                                beritaAcaraAbsentStudents: e.target.value,
+                              });
+                            }}
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">
+                            Peserta Hadir (orang)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Otomatis"
+                            value={draft.beritaAcaraPresentStudents ?? ''}
+                            onChange={(e) =>
+                              setDraft({
+                                ...draft,
+                                beritaAcaraFillMode: 'auto',
+                                beritaAcaraPresentStudents: e.target.value,
+                              })
+                            }
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="lg:col-span-1">
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">
+                            Mata Pelajaran
+                          </label>
+                          <input
+                            type="text"
+                            placeholder={selectedSubject || 'Otomatis mapel'}
+                            value={draft.beritaAcaraSubject ?? ''}
+                            onChange={(e) =>
+                              setDraft({ ...draft, beritaAcaraFillMode: 'auto', beritaAcaraSubject: e.target.value })
+                            }
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">
+                            Jumlah Eksemplar Soal
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Otomatis (+2 cadangan)"
+                            value={draft.beritaAcaraCopies ?? ''}
+                            onChange={(e) =>
+                              setDraft({ ...draft, beritaAcaraFillMode: 'auto', beritaAcaraCopies: e.target.value })
+                            }
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">
+                            Nama Pengawas
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Otomatis jadwal"
+                            value={draft.beritaAcaraSupervisorName ?? ''}
+                            onChange={(e) =>
+                              setDraft({
+                                ...draft,
+                                beritaAcaraFillMode: 'auto',
+                                beritaAcaraSupervisorName: e.target.value,
+                              })
+                            }
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">
+                            NIP Pengawas
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Opsional"
+                            value={draft.beritaAcaraSupervisorNip ?? ''}
+                            onChange={(e) =>
+                              setDraft({
+                                ...draft,
+                                beritaAcaraFillMode: 'auto',
+                                beritaAcaraSupervisorNip: e.target.value,
+                              })
+                            }
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                          />
+                        </div>
+                      </div>
+
                       <div>
                         <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">
-                          Nama Peserta Tidak Hadir
+                          Catatan Selama Pelaksanaan (Poin c)
                         </label>
-                        <input
-                          type="text"
-                          value={baAbsentNames}
-                          onChange={(e) => setBaAbsentNames(e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold"
+                        <textarea
+                          rows={3}
+                          value={draft.beritaAcaraNotes}
+                          onChange={(e) =>
+                            setDraft({ ...draft, beritaAcaraFillMode: 'auto', beritaAcaraNotes: e.target.value })
+                          }
+                          placeholder="Ketik catatan kejadian bila ada (maks. 5 baris cetak)..."
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-2xl font-semibold text-xs"
                         />
                       </div>
                     </div>
-                    <div>
-                      <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">
-                        Catatan Kejadian Selama Ujian
-                      </label>
-                      <textarea
-                        rows={3}
-                        value={draft.beritaAcaraNotes}
-                        onChange={(e) => setDraft({ ...draft, beritaAcaraNotes: e.target.value })}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-2xl font-semibold"
-                      />
+
+                    {/* Bagian 3: Edit Keterangan Bawah */}
+                    <div className="border border-slate-200 rounded-2xl p-3.5 space-y-2.5 bg-white">
+                      <div className="text-[11px] font-black uppercase tracking-wider text-slate-700">
+                        3. Edit Keterangan Bawah (* dan **)
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">
+                            Keterangan *)
+                          </label>
+                          <input
+                            type="text"
+                            value={
+                              draft.beritaAcaraFootnote1 ??
+                              'Diisi dengan mata pelajaran pada waktu itu.'
+                            }
+                            onChange={(e) => setDraft({ ...draft, beritaAcaraFootnote1: e.target.value })}
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">
+                            Judul Keterangan **)
+                          </label>
+                          <input
+                            type="text"
+                            value={
+                              draft.beritaAcaraFootnote2Title ??
+                              'Diisi apabila terjadi antara lain hal-hal sebagai berikut :'
+                            }
+                            onChange={(e) => setDraft({ ...draft, beritaAcaraFootnote2Title: e.target.value })}
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                        <div>
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">Poin 1).</label>
+                          <input
+                            type="text"
+                            value={
+                              draft.beritaAcaraFootnote2Item1 ??
+                              'Ketidaksesuaian perangkat soal yang diterima.'
+                            }
+                            onChange={(e) => setDraft({ ...draft, beritaAcaraFootnote2Item1: e.target.value })}
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">Poin 2).</label>
+                          <input
+                            type="text"
+                            value={
+                              draft.beritaAcaraFootnote2Item2 ??
+                              `Ketidaksesuaian jumlah peserta ${draft.beritaAcaraExamLabel ?? 'PAS/SAS'} yang hadir (alasan ketidakhadiran).`
+                            }
+                            onChange={(e) => setDraft({ ...draft, beritaAcaraFootnote2Item2: e.target.value })}
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-black uppercase text-[10px] text-slate-500 mb-1">Poin 3).</label>
+                          <input
+                            type="text"
+                            value={
+                              draft.beritaAcaraFootnote2Item3 ??
+                              `Pelanggaran tata tertib oleh peserta ${draft.beritaAcaraExamLabel ?? 'PAS/SAS'} dan lain-lain.`
+                            }
+                            onChange={(e) => setDraft({ ...draft, beritaAcaraFootnote2Item3: e.target.value })}
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                          />
+                        </div>
+                      </div>
                     </div>
+
+                    {/* Tombol Simpan, Cetak & Unduh PDF */}
                     <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={handleSave}
+                        className="px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-xs flex items-center space-x-2 cursor-pointer shadow-sm"
+                      >
+                        <Save className="w-4 h-4" />
+                        <span>Simpan Perubahan Berita Acara</span>
+                      </button>
                       <button
                         type="button"
                         onClick={handlePrintBeritaAcara}
@@ -4162,6 +5080,15 @@ const handlePrintDaftarHadirSemuaMapel = () => {
                       </button>
                       <button
                         type="button"
+                        onClick={handleDownloadBeritaAcaraPdf}
+                        disabled={downloadingBeritaAcaraPdf}
+                        className="px-4 py-2.5 rounded-2xl bg-sky-600 hover:bg-sky-700 disabled:opacity-60 text-white font-black uppercase text-xs flex items-center space-x-2 cursor-pointer"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>{downloadingBeritaAcaraPdf ? 'Membuat PDF...' : 'Unduh PDF • F4 Portrait'}</span>
+                      </button>
+                      <button
+                        type="button"
                         onClick={handlePrintBeritaAcaraSemuaMapel}
                         className="px-4 py-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black uppercase text-xs flex items-center space-x-2 cursor-pointer shadow-md shadow-slate-900/15"
                       >
@@ -4169,6 +5096,251 @@ const handlePrintDaftarHadirSemuaMapel = () => {
                         <span>Cetak Semua Mapel Sekaligus ({subMenuClass})</span>
                       </button>
                     </div>
+
+                    {/* Pratinjau Langsung Berita Acara (Sesuai Cetakan F4 Portrait) */}
+                    {showBeritaAcaraPreview && (
+                      <div className="bg-slate-100 border border-slate-200 rounded-2xl p-4 overflow-x-auto">
+                        <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">
+                          Pratinjau Dokumen (F4 Portrait • 215 x 330 mm)
+                        </div>
+                        <div
+                          className="bg-white text-black mx-auto shadow-md border border-slate-200 p-7"
+                          style={{ width: '710px', fontFamily: "'Times New Roman', Times, serif", fontSize: '13px', lineHeight: 1.5 }}
+                        >
+                          {/* Kop Preview */}
+                          <div className="relative flex items-center justify-center min-h-[68px] pb-1">
+                            <img
+                              src={MI_LOGO_PATH}
+                              alt="Logo MI Islamiyah Rowosari"
+                              className="w-16 h-16 object-contain absolute left-0 top-1/2 -translate-y-1/2"
+                            />
+                            <div className="w-full text-center px-16 leading-tight" style={{ fontFamily: "'Century Gothic','Trebuchet MS',Arial,sans-serif" }}>
+                              <div className="text-[12px] font-bold uppercase">LEMBAGA PENDIDIKAN MA’ARIF NU</div>
+                              <div className="text-[17px] font-extrabold uppercase">“MI ISLAMIYAH ROWOSARI”</div>
+                              <div className="text-[12px] font-bold uppercase">BADAN HUKUM PERKUMPULAN NAHDLATUL ULAMA</div>
+                              <div className="text-[8.5px] font-bold">
+                                SK MENKUMHAM NO. AHU-119.AH.01.08 TAHUN 2013 | Status : Terakreditasi B, NSM : 111233250075, NPSN : 60713227
+                              </div>
+                              <div className="text-[9.5px] font-bold text-blue-600">
+                                e-mail : <span className="underline">miirowosari@yahoo.co.id</span> / <span className="underline">miirowosari@gmail.com</span>
+                              </div>
+                              <div className="text-[9.5px] font-bold italic">
+                                Alamat : Jl. Masjid Adiloko, No.03, Rt.04/Rw.04, Rowosari, Limpung, Batang
+                              </div>
+                            </div>
+                          </div>
+                          <div className="border-t-[3px] border-b border-black h-[5px] my-1.5 mb-3" />
+
+                          {/* Title Preview */}
+                          <div className="text-center font-bold uppercase leading-snug mb-3.5 text-[13.5px]">
+                            <div>{beritaAcaraPreviewData.heading}</div>
+                            <div>{beritaAcaraPreviewData.subtitle}</div>
+                            <div>{beritaAcaraPreviewData.academicYear}</div>
+                          </div>
+
+                          {/* Opening Preview */}
+                          <div className="mb-1.5 leading-7">
+                            <div>
+                              Pada hari ini{' '}
+                              <span className="inline-block min-w-[115px] border-b border-dotted border-black text-center px-1 leading-tight">
+                                {beritaAcaraPreviewData.day || '\u00A0'}
+                              </span>{' '}
+                              tanggal{' '}
+                              <span className="inline-block min-w-[115px] border-b border-dotted border-black text-center px-1 leading-tight">
+                                {beritaAcaraPreviewData.dateNum || '\u00A0'}
+                              </span>{' '}
+                              bulan{' '}
+                              <span className="inline-block min-w-[140px] border-b border-dotted border-black text-center px-1 leading-tight">
+                                {beritaAcaraPreviewData.month || '\u00A0'}
+                              </span>
+                            </div>
+                            <div>
+                              Tahun{' '}
+                              <span className="inline-block min-w-[260px] border-b border-dotted border-black text-center px-1 leading-tight">
+                                {beritaAcaraPreviewData.year || '\u00A0'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Points a, b, c Preview */}
+                          <div className="space-y-2">
+                            <div className="flex items-start gap-2">
+                              <span className="w-5 shrink-0">a.</span>
+                              <div className="flex-1">
+                                <div>
+                                  Telah diselenggarakan {beritaAcaraPreviewData.examLabel} dari pukul{' '}
+                                  <span className="inline-block min-w-[85px] border-b border-dotted border-black text-center px-1 leading-tight">
+                                    {beritaAcaraPreviewData.timeStart || '\u00A0'}
+                                  </span>{' '}
+                                  WIB s.d pukul{' '}
+                                  <span className="inline-block min-w-[85px] border-b border-dotted border-black text-center px-1 leading-tight">
+                                    {beritaAcaraPreviewData.timeEnd || '\u00A0'}
+                                  </span>{' '}
+                                  WIB
+                                </div>
+                                <div className="ml-3 mt-1 space-y-1">
+                                  <div className="flex items-baseline">
+                                    <span className="w-56 shrink-0">Pada Madrasah</span>
+                                    <span className="w-4 text-center">:</span>
+                                    <span className="inline-block min-w-[260px] border-b border-dotted border-black px-1 leading-tight">
+                                      {beritaAcaraPreviewData.madrasah || '\u00A0'}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-baseline">
+                                    <span className="w-56 shrink-0">Ruang / Kelas</span>
+                                    <span className="w-4 text-center">:</span>
+                                    <span>
+                                      <span className="inline-block min-w-[100px] border-b border-dotted border-black text-center px-1 leading-tight">
+                                        {beritaAcaraPreviewData.room || '\u00A0'}
+                                      </span>{' '}
+                                      ({' '}
+                                      <span className="inline-block min-w-[130px] border-b border-dotted border-black text-center px-1 leading-tight">
+                                        {beritaAcaraPreviewData.className || '\u00A0'}
+                                      </span>{' '}
+                                      )
+                                    </span>
+                                  </div>
+                                  <div className="flex items-baseline">
+                                    <span className="w-56 shrink-0">Jumlah Peserta yang Seharusnya</span>
+                                    <span className="w-4 text-center">:</span>
+                                    <span>
+                                      <span className="inline-block min-w-[100px] border-b border-dotted border-black text-center px-1 leading-tight">
+                                        {beritaAcaraPreviewData.total || '\u00A0'}
+                                      </span>{' '}
+                                      orang
+                                    </span>
+                                  </div>
+                                  <div className="flex items-baseline">
+                                    <span className="w-56 shrink-0">Jumlah Peserta yang Tidak Hadir</span>
+                                    <span className="w-4 text-center">:</span>
+                                    <span>
+                                      <span className="inline-block min-w-[100px] border-b border-dotted border-black text-center px-1 leading-tight">
+                                        {beritaAcaraPreviewData.absent || '\u00A0'}
+                                      </span>{' '}
+                                      orang
+                                    </span>
+                                  </div>
+                                  <div className="flex items-baseline">
+                                    <span className="w-56 shrink-0">Jumlah Peserta yang Hadir</span>
+                                    <span className="w-4 text-center">:</span>
+                                    <span>
+                                      <span className="inline-block min-w-[100px] border-b border-dotted border-black text-center px-1 leading-tight">
+                                        {beritaAcaraPreviewData.present || '\u00A0'}
+                                      </span>{' '}
+                                      orang
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-start gap-2">
+                              <span className="w-5 shrink-0">b.</span>
+                              <div className="flex-1 text-justify leading-relaxed">
+                                <div>
+                                  Telah dibuka sampul Naskah Soal {beritaAcaraPreviewData.examLabel} untuk Mata Pelajaran{' '}
+                                  <span className="inline-block min-w-[195px] border-b border-dotted border-black text-center px-1 leading-tight">
+                                    {beritaAcaraPreviewData.subject || '\u00A0'}
+                                  </span>{' '}
+                                  *) di Ruang {beritaAcaraPreviewData.examLabel} dengan disaksikan oleh para peserta, yang berisi Naskah Soal {beritaAcaraPreviewData.examLabel} sebanyak{' '}
+                                  <span className="inline-block min-w-[115px] border-b border-dotted border-black text-center px-1 leading-tight">
+                                    {beritaAcaraPreviewData.copies || '\u00A0'}
+                                  </span>{' '}
+                                  eksemplar.
+                                </div>
+                                <div className="mt-0.5">
+                                  Sebelum dibuka sampul Naskah Soal {beritaAcaraPreviewData.examLabel} tersebut {beritaAcaraPreviewData.condition}.
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-start gap-2">
+                              <span className="w-5 shrink-0">c.</span>
+                              <div className="flex-1">
+                                <div>Catatan selama pelaksanaan {beritaAcaraPreviewData.examLabel} **)</div>
+                                <div className="mt-1 space-y-1">
+                                  {beritaAcaraPreviewNotesLines.map((ln, idx) => (
+                                    <div
+                                      key={idx}
+                                      className={`border-b border-dotted border-black min-h-[20px] leading-5 px-1 ${
+                                        idx === 4 ? 'w-[90%]' : 'w-full'
+                                      }`}
+                                    >
+                                      {ln || '\u00A0'}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="my-2">Berita Acara ini dibuat dengan sesungguhnya.</div>
+
+                          {/* Signature Preview */}
+                          <div className="flex justify-end mr-2 mb-3">
+                            <div className="w-[310px]">
+                              <div className="text-center font-bold pl-10 mb-1">Yang membuat berita acara</div>
+                              <div className="mb-8">Pengawas</div>
+                              <div className="space-y-1">
+                                <div className="flex items-baseline">
+                                  <span className="w-5">1.</span>
+                                  <span className="w-24">Tanda Tangan</span>
+                                  <span className="w-4 text-center">:</span>
+                                  <span className="inline-block min-w-[155px] border-b border-dotted border-black px-1 leading-tight">
+                                    {'\u00A0'}
+                                  </span>
+                                </div>
+                                <div className="flex items-baseline">
+                                  <span className="w-5">2.</span>
+                                  <span className="w-24">Nama</span>
+                                  <span className="w-4 text-center">:</span>
+                                  <span className="inline-block min-w-[155px] border-b border-dotted border-black px-1 leading-tight">
+                                    {beritaAcaraPreviewData.supervisorName || '\u00A0'}
+                                  </span>
+                                </div>
+                                <div className="flex items-baseline">
+                                  <span className="w-5">3.</span>
+                                  <span className="w-24">NIP</span>
+                                  <span className="w-4 text-center">:</span>
+                                  <span className="inline-block min-w-[155px] border-b border-dotted border-black px-1 leading-tight">
+                                    {beritaAcaraPreviewData.supervisorNip || '\u00A0'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Keterangan Preview */}
+                          <div className="text-[11.5px] leading-snug">
+                            <div>Keterangan :</div>
+                            <div className="flex items-start mt-0.5">
+                              <span className="w-8 shrink-0">*)</span>
+                              <span>{beritaAcaraPreviewData.fn1}</span>
+                            </div>
+                            <div className="flex items-start mt-0.5">
+                              <span className="w-8 shrink-0">**)</span>
+                              <div className="flex-1">
+                                <div>{beritaAcaraPreviewData.fn2Title}</div>
+                                <div className="ml-2 mt-0.5 space-y-0.5">
+                                  <div className="flex items-start">
+                                    <span className="w-6 shrink-0">1).</span>
+                                    <span>{beritaAcaraPreviewData.fn2Item1}</span>
+                                  </div>
+                                  <div className="flex items-start">
+                                    <span className="w-6 shrink-0">2).</span>
+                                    <span>{beritaAcaraPreviewData.fn2Item2}</span>
+                                  </div>
+                                  <div className="flex items-start">
+                                    <span className="w-6 shrink-0">3).</span>
+                                    <span>{beritaAcaraPreviewData.fn2Item3}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
