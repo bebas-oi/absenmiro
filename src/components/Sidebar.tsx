@@ -56,6 +56,12 @@ export const Sidebar: React.FC = () => {
           icon: Users,
         },
         {
+          id: 'teachers',
+          label: 'Data Guru',
+          subLabel: 'Dewan Guru & Wali Kelas',
+          icon: GraduationCap,
+        },
+        {
           id: 'reports',
           label: 'Laporan Kehadiran',
           subLabel: 'Rekap & By Name',
@@ -89,8 +95,8 @@ export const Sidebar: React.FC = () => {
         },
         {
           id: 'teachers',
-          label: 'Data Wali Kelas',
-          subLabel: 'Guru & Kontak Kelas',
+          label: 'Data Guru',
+          subLabel: 'Dewan Guru & Wali Kelas',
           icon: GraduationCap,
         },
         {

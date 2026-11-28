@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
   ActiveTab,
   AppUser,
@@ -166,7 +166,25 @@ interface AppContextType {
     notes?: string;
     customTime?: string;
   }) => boolean;
-  deleteAttendanceRecord: (id: string) => void;
+  updateAttendanceRecord: (record: AttendanceRecord, silent?: boolean) => boolean;
+  upsertAttendanceForDate: (
+    data: {
+      studentId: string;
+      date: string;
+      status: AttendanceStatus;
+      type?: AttendanceType;
+      timeIn?: string;
+      timeOut?: string;
+      notes?: string;
+    },
+    silent?: boolean
+  ) => boolean;
+  batchUpdateAttendanceStatus: (
+    ids: string[],
+    status: AttendanceStatus,
+    notes?: string
+  ) => number;
+  deleteAttendanceRecord: (id: string, silent?: boolean) => void;
 
   // Student CRUD & Batch Import
   addStudent: (student: Omit<Student, 'id' | 'createdAt'>) => Student;
@@ -785,9 +803,48 @@ const normalizeSchoolName = (name?: string): string => {
   }, [examInstruments]);
 
   // =========================================================================
-  // RBAC ACCESS CONTROL FILTERING (BACKEND CONTEXT ENFORCEMENT)
+  // SORT CLASSES FROM GRADE 1 & RBAC ACCESS CONTROL FILTERING
   // If currentUser is GURU, data is strictly filtered to their assignedClass
   // =========================================================================
+  const sortedClasses = useMemo(() => {
+    const getClassSortOrder = (cls: ClassRoom): number => {
+      const name = (cls.name || '').trim();
+      const digitMatch = name.match(/\d+/);
+      if (digitMatch) {
+        return parseInt(digitMatch[0], 10);
+      }
+      const romanMatch = name.match(/\b(XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)\b/i);
+      if (romanMatch) {
+        const romanMap: Record<string, number> = {
+          I: 1,
+          II: 2,
+          III: 3,
+          IV: 4,
+          V: 5,
+          VI: 6,
+          VII: 7,
+          VIII: 8,
+          IX: 9,
+          X: 10,
+          XI: 11,
+          XII: 12,
+        };
+        return romanMap[romanMatch[1].toUpperCase()] ?? 999;
+      }
+      return Number(cls.grade) || 999;
+    };
+
+    return [...classes].sort((a, b) => {
+      const orderA = getClassSortOrder(a);
+      const orderB = getClassSortOrder(b);
+      if (orderA !== orderB) return orderA - orderB;
+      return (a.name || '').localeCompare(b.name || '', 'id', {
+        numeric: true,
+        sensitivity: 'base',
+      });
+    });
+  }, [classes]);
+
   const accessibleStudents = isGuru && currentUser?.assignedClass
     ? students.filter((s) => s.className.toLowerCase() === currentUser.assignedClass?.toLowerCase())
     : students;
@@ -796,9 +853,15 @@ const normalizeSchoolName = (name?: string): string => {
     ? attendance.filter((a) => a.className.toLowerCase() === currentUser.assignedClass?.toLowerCase())
     : attendance;
 
-  const accessibleClasses = isGuru && currentUser?.assignedClass
-    ? classes.filter((c) => c.name.toLowerCase() === currentUser.assignedClass?.toLowerCase())
-    : classes;
+  const accessibleClasses = useMemo(
+    () =>
+      isGuru && currentUser?.assignedClass
+        ? sortedClasses.filter(
+            (c) => c.name.toLowerCase() === currentUser.assignedClass?.toLowerCase()
+          )
+        : sortedClasses,
+    [isGuru, currentUser?.assignedClass, sortedClasses]
+  );
 
   const accessibleExamSchedules = isGuru && currentUser?.assignedClass
     ? examSchedules.filter((e) => e.className.toLowerCase() === currentUser.assignedClass?.toLowerCase())
@@ -1087,11 +1150,238 @@ const normalizeSchoolName = (name?: string): string => {
     [students, attendance, settings]
   );
 
-  const deleteAttendanceRecord = useCallback((id: string) => {
+  const updateAttendanceRecord = useCallback(
+    (updated: AttendanceRecord, silent = false) => {
+      if (
+        isGuru &&
+        currentUser?.assignedClass &&
+        updated.className.toLowerCase() !== currentUser.assignedClass.toLowerCase()
+      ) {
+        showErrorToast('Anda hanya dapat mengubah presensi siswa pada kelas Anda.');
+        return false;
+      }
+
+      const normalized: AttendanceRecord = {
+        ...updated,
+        method: updated.method || 'MANUAL',
+      };
+      if (
+        normalized.status === 'IZIN' ||
+        normalized.status === 'SAKIT' ||
+        normalized.status === 'ALPA'
+      ) {
+        normalized.timeIn = undefined;
+        normalized.timeOut = undefined;
+      }
+
+      setAttendance((prev) =>
+        prev.map((a) => (a.id === normalized.id ? normalized : a))
+      );
+      saveCloudAttendance(normalized);
+      saveSupabaseAttendance(normalized);
+      if (!silent) {
+        showSuccessToast(
+          `Presensi ${normalized.studentName} (${normalized.date}) berhasil diubah ke ${normalized.status}.`
+        );
+      }
+      return true;
+    },
+    [isGuru, currentUser]
+  );
+
+  const upsertAttendanceForDate = useCallback(
+    (
+      {
+        studentId,
+        date,
+        status,
+        type = 'masuk',
+        timeIn,
+        timeOut,
+        notes,
+      }: {
+        studentId: string;
+        date: string;
+        status: AttendanceStatus;
+        type?: AttendanceType;
+        timeIn?: string;
+        timeOut?: string;
+        notes?: string;
+      },
+      silent = false
+    ) => {
+      const student = students.find((s) => s.id === studentId);
+      if (!student) {
+        showErrorToast('Siswa tidak ditemukan!');
+        return false;
+      }
+      if (
+        isGuru &&
+        currentUser?.assignedClass &&
+        student.className.toLowerCase() !== currentUser.assignedClass.toLowerCase()
+      ) {
+        showErrorToast('Anda hanya dapat mengelola presensi siswa pada kelas Anda.');
+        return false;
+      }
+      if (!date) {
+        showErrorToast('Tanggal wajib dipilih.');
+        return false;
+      }
+
+      const isPresentStatus = status === 'HADIR' || status === 'TERLAMBAT';
+      const defaultTimeIn =
+        status === 'TERLAMBAT'
+          ? `${settings.timeInLate || '07:15'}:00`
+          : `${settings.timeInStandard || '07:00'}:00`;
+      const existing = attendance.find(
+        (a) => a.studentId === student.id && a.date === date
+      );
+
+      if (existing) {
+        const updatedRec: AttendanceRecord = {
+          ...existing,
+          status,
+          type: type || existing.type || 'masuk',
+          method: 'MANUAL',
+          notes:
+            notes !== undefined && notes.trim() !== ''
+              ? notes.trim()
+              : `Diperbarui manual (${status})`,
+          timeIn: isPresentStatus
+            ? (timeIn !== undefined ? timeIn.trim() : existing.timeIn) || defaultTimeIn
+            : undefined,
+          timeOut: isPresentStatus
+            ? (timeOut !== undefined ? timeOut.trim() : existing.timeOut) || undefined
+            : undefined,
+        };
+        setAttendance((prev) =>
+          prev.map((r) => (r.id === existing.id ? updatedRec : r))
+        );
+        saveCloudAttendance(updatedRec);
+        saveSupabaseAttendance(updatedRec);
+        if (!silent) {
+          showSuccessToast(
+            `Presensi ${student.name} (${date}) berhasil diperbarui ke ${status}.`
+          );
+        }
+        return true;
+      }
+
+      const newRecord: AttendanceRecord = {
+        id: `att-man-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        studentId: student.id,
+        nis: student.nis,
+        studentName: student.name,
+        className: student.className,
+        date,
+        timeIn: isPresentStatus ? (timeIn?.trim() || defaultTimeIn) : undefined,
+        timeOut: isPresentStatus ? (timeOut?.trim() || undefined) : undefined,
+        type,
+        status,
+        method: 'MANUAL',
+        notes:
+          notes !== undefined && notes.trim() !== ''
+            ? notes.trim()
+            : `Input manual laporan (${status})`,
+        timestamp: Date.now(),
+      };
+
+      setAttendance((prev) => [newRecord, ...prev]);
+      saveCloudAttendance(newRecord);
+      saveSupabaseAttendance(newRecord);
+      if (!silent) {
+        showSuccessToast(
+          `Presensi ${student.name} (${date}) dicatat sebagai ${status}.`
+        );
+      }
+      return true;
+    },
+    [students, attendance, settings, isGuru, currentUser]
+  );
+
+  const batchUpdateAttendanceStatus = useCallback(
+    (ids: string[], status: AttendanceStatus, notes?: string) => {
+      if (ids.length === 0) return 0;
+      const idSet = new Set(ids);
+      const isPresentStatus = status === 'HADIR' || status === 'TERLAMBAT';
+      const defaultTimeIn =
+        status === 'TERLAMBAT'
+          ? `${settings.timeInLate || '07:15'}:00`
+          : `${settings.timeInStandard || '07:00'}:00`;
+
+      const updatedItems: AttendanceRecord[] = [];
+      setAttendance((prev) =>
+        prev.map((rec) => {
+          if (!idSet.has(rec.id)) return rec;
+          if (
+            isGuru &&
+            currentUser?.assignedClass &&
+            rec.className.toLowerCase() !== currentUser.assignedClass.toLowerCase()
+          ) {
+            return rec;
+          }
+          const nextRec: AttendanceRecord = {
+            ...rec,
+            status,
+            method: 'MANUAL',
+            timeIn: isPresentStatus ? rec.timeIn || defaultTimeIn : undefined,
+            timeOut: isPresentStatus ? rec.timeOut : undefined,
+            notes:
+              notes !== undefined && notes.trim() !== ''
+                ? notes.trim()
+                : `Diperbarui massal (${status})`,
+          };
+          updatedItems.push(nextRec);
+          return nextRec;
+        })
+      );
+
+      // Persist asynchronously using current attendance snapshot
+      const snapshotToSave = attendance
+        .filter((rec) => idSet.has(rec.id))
+        .filter(
+          (rec) =>
+            !(
+              isGuru &&
+              currentUser?.assignedClass &&
+              rec.className.toLowerCase() !== currentUser.assignedClass.toLowerCase()
+            )
+        )
+        .map((rec) => ({
+          ...rec,
+          status,
+          method: 'MANUAL' as const,
+          timeIn: isPresentStatus ? rec.timeIn || defaultTimeIn : undefined,
+          timeOut: isPresentStatus ? rec.timeOut : undefined,
+          notes:
+            notes !== undefined && notes.trim() !== ''
+              ? notes.trim()
+              : `Diperbarui massal (${status})`,
+        }));
+
+      const toPersist = snapshotToSave.length > 0 ? snapshotToSave : updatedItems;
+      toPersist.forEach((rec) => {
+        saveCloudAttendance(rec);
+        saveSupabaseAttendance(rec);
+      });
+
+      if (toPersist.length > 0) {
+        showSuccessToast(
+          `${toPersist.length} data presensi berhasil diubah menjadi ${status}.`
+        );
+      }
+      return toPersist.length;
+    },
+    [attendance, settings, isGuru, currentUser]
+  );
+
+  const deleteAttendanceRecord = useCallback((id: string, silent = false) => {
     setAttendance((prev) => prev.filter((a) => a.id !== id));
     deleteCloudAttendance(id);
     deleteSupabaseAttendance(id);
-    showSuccessToast('Data presensi berhasil dihapus.');
+    if (!silent) {
+      showSuccessToast('Data presensi berhasil dihapus.');
+    }
   }, []);
 
   // Student CRUD
@@ -1626,7 +1916,7 @@ const normalizeSchoolName = (name?: string): string => {
         syncWithCloud,
         updateSupabaseConfig,
         students,
-        classes,
+        classes: sortedClasses,
         teachers,
         users,
         attendance,
@@ -1646,6 +1936,9 @@ const normalizeSchoolName = (name?: string): string => {
         setIsMobileNavOpen,
         processRfidScan,
         addManualAttendance,
+        updateAttendanceRecord,
+        upsertAttendanceForDate,
+        batchUpdateAttendanceStatus,
         deleteAttendanceRecord,
         addStudent,
         batchImportStudents,

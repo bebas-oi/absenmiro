@@ -2145,7 +2145,7 @@ export const StudentsClassesView: React.FC = () => {
                   <option value="">-- Belum Ditentukan --</option>
                   {teachers.map((t) => (
                     <option key={t.id} value={t.id}>
-                      {t.name} ({t.assignedClass})
+                      {t.name} ({t.assignedClass || 'Guru Mapel / Non-Wali'})
                     </option>
                   ))}
                 </select>

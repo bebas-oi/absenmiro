@@ -288,7 +288,7 @@ export function subscribeCloudAttendance(
 export async function saveCloudAttendance(record: AttendanceRecord): Promise<void> {
   try {
     const docRef = doc(db, ATTENDANCE_COLLECTION, record.id);
-    await setDoc(docRef, stripUndefined(record), { merge: true });
+    await setDoc(docRef, stripUndefined(record));
   } catch (err) {
     console.error('[Firestore] Error saving attendance record:', err);
   }

@@ -42,8 +42,7 @@ const MainLayout: React.FC = () => {
         <main className="flex-1 p-4 sm:p-6 lg:p-7 min-w-0 min-h-0 overflow-y-auto">
           {activeTab === 'dashboard' && <DashboardView />}
           {activeTab === 'students' && <StudentsClassesView />}
-          {activeTab === 'teachers' && !isGuru && <TeachersView />}
-          {activeTab === 'teachers' && isGuru && <DashboardView />}
+          {activeTab === 'teachers' && <TeachersView />}
           {activeTab === 'users' && !isGuru && <UserManagementView />}
           {activeTab === 'users' && isGuru && <DashboardView />}
           {activeTab === 'reports' && <AttendanceReportsView />}
