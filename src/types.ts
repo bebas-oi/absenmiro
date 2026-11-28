@@ -108,6 +108,7 @@ export interface SchoolSettings {
   timeOutStandard: string; // e.g. "13:30"
   timeOutFriday: string; // e.g. "11:30"
   activeAcademicYear: string;
+  academicYears?: string[];
   activeSemester: string;
   autoMode: boolean; // Auto detect masuk vs pulang based on current time
   soundEnabled: boolean;

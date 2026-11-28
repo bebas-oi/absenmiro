@@ -286,6 +286,11 @@ interface AppContextType {
   // Settings
   updateSettings: (newSettings: SchoolSettings) => void;
   resetAllData: () => void;
+  activeAcademicYear: string;
+  academicYears: string[];
+  setActiveAcademicYear: (year: string) => void;
+  addAcademicYear: (year: string) => boolean;
+  importDataFromPreviousYear: (sourceYear: string, targetYear: string) => boolean;
 
   // ASAS & ASAT Exam Schedules, Configs & Instruments
   examSchedules: ExamScheduleItem[];
@@ -1031,11 +1036,15 @@ const normalizeSchoolName = (name?: string): string => {
   );
 
   const accessibleClasses = useMemo(
-    () =>
-      hasRestrictedGuruScope
-        ? sortedClasses.filter((c) => allowedClassSet.has(c.name.toLowerCase()))
-        : sortedClasses,
-    [hasRestrictedGuruScope, sortedClasses, allowedClassSet]
+    () => {
+      const activeYear = settings.activeAcademicYear || '2026/2027';
+      let base = sortedClasses.filter((c) => (c.academicYear || '2026/2027') === activeYear);
+      if (base.length === 0) base = sortedClasses;
+      return hasRestrictedGuruScope
+        ? base.filter((c) => allowedClassSet.has(c.name.toLowerCase()))
+        : base;
+    },
+    [hasRestrictedGuruScope, sortedClasses, allowedClassSet, settings.activeAcademicYear]
   );
 
   const accessibleExamSchedules = useMemo(
@@ -1957,6 +1966,84 @@ const normalizeSchoolName = (name?: string): string => {
     );
   }, []);
 
+  const academicYears = useMemo(() => {
+    const list = settings.academicYears && settings.academicYears.length > 0
+      ? settings.academicYears
+      : ['2024/2025', '2025/2026', '2026/2027'];
+    if (settings.activeAcademicYear && !list.includes(settings.activeAcademicYear)) {
+      list.push(settings.activeAcademicYear);
+    }
+    return Array.from(new Set(list)).sort();
+  }, [settings.academicYears, settings.activeAcademicYear]);
+
+  const setActiveAcademicYear = useCallback((year: string) => {
+    const updated = { ...settings, activeAcademicYear: year };
+    setSettings(updated);
+    saveCloudSettings(updated);
+    saveSupabaseSettings(updated);
+    showSuccessToast(`Tahun ajaran aktif diubah ke ${year}.`);
+  }, [settings]);
+
+  const addAcademicYear = useCallback((newYear: string) => {
+    const clean = newYear.trim();
+    if (!clean) return false;
+    const currentYears = settings.academicYears || ['2024/2025', '2025/2026', '2026/2027'];
+    if (currentYears.includes(clean)) {
+      showWarningToast(`Tahun ajaran ${clean} sudah ada.`);
+      return false;
+    }
+    const updatedYears = [...currentYears, clean].sort();
+    const updated = { ...settings, academicYears: updatedYears, activeAcademicYear: clean };
+    setSettings(updated);
+    saveCloudSettings(updated);
+    saveSupabaseSettings(updated);
+    showSuccessToast(`Tahun ajaran baru ${clean} berhasil ditambahkan dan diaktifkan.`);
+    return true;
+  }, [settings]);
+
+  const importDataFromPreviousYear = useCallback((sourceYear: string, targetYear: string) => {
+    const sourceClasses = classes.filter(c => (c.academicYear || '2026/2027') === sourceYear);
+    if (sourceClasses.length === 0) {
+      showWarningToast(`Tidak ada data kelas pada tahun ajaran ${sourceYear}.`);
+      return false;
+    }
+
+    const newClasses: ClassRoom[] = sourceClasses.map((sc, idx) => ({
+      id: `cls-imp-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 5)}`,
+      name: sc.name,
+      grade: sc.grade,
+      academicYear: targetYear,
+      homeroomTeacherId: sc.homeroomTeacherId,
+    }));
+
+    const sourceClassNames = new Set(sourceClasses.map(c => c.name.toLowerCase()));
+    const sourceStudents = students.filter(s => sourceClassNames.has(s.className.toLowerCase()));
+
+    const newStudents: Student[] = sourceStudents.map((ss, idx) => ({
+      ...ss,
+      id: `st-imp-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 5)}`,
+    }));
+
+    setClasses(prev => [...newClasses, ...prev]);
+    if (newStudents.length > 0) {
+      setStudents(prev => [...newStudents, ...prev]);
+      batchSaveCloudStudents(newStudents);
+      batchSaveSupabaseStudents(newStudents);
+    }
+    newClasses.forEach(c => saveCloudClass(c));
+    newClasses.forEach(c => saveSupabaseClass(c));
+
+    const currentYears = settings.academicYears || ['2024/2025', '2025/2026', '2026/2027'];
+    const updatedYears = currentYears.includes(targetYear) ? currentYears : [...currentYears, targetYear].sort();
+    const updatedSettings = { ...settings, academicYears: updatedYears, activeAcademicYear: targetYear };
+    setSettings(updatedSettings);
+    saveCloudSettings(updatedSettings);
+    saveSupabaseSettings(updatedSettings);
+
+    showSuccessToast(`Berhasil mengimpor ${newClasses.length} kelas dan ${newStudents.length} siswa dari TA ${sourceYear} ke TA ${targetYear}!`);
+    return true;
+  }, [classes, students, settings]);
+
   // Settings
   const updateSettings = useCallback((newSettings: SchoolSettings) => {
     setSettings(newSettings);
@@ -2190,6 +2277,11 @@ const normalizeSchoolName = (name?: string): string => {
         resetUserPassword,
         updateSettings,
         resetAllData,
+        activeAcademicYear: settings.activeAcademicYear || '2026/2027',
+        academicYears,
+        setActiveAcademicYear,
+        addAcademicYear,
+        importDataFromPreviousYear,
         examSchedules,
         accessibleExamSchedules,
         examConfigs,

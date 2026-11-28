@@ -17,6 +17,7 @@ import {
   FileCheck2,
   TrendingUp,
   Award,
+  Calendar,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { ActiveTab } from '../types';
@@ -40,9 +41,20 @@ export const Sidebar: React.FC = () => {
     accessibleClasses,
     setViewMode,
     logout,
+    activeAcademicYear,
+    academicYears,
+    setActiveAcademicYear,
+    addAcademicYear,
+    importDataFromPreviousYear,
   } = useApp();
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isAddYearModalOpen, setIsAddYearModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [newYearInput, setNewYearInput] = useState('');
+  const [importSourceYear, setImportSourceYear] = useState(academicYears[0] || '2025/2026');
+  const [importTargetYear, setImportTargetYear] = useState('2027/2028');
+
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
     try {
       return localStorage.getItem('mi_rowosari_sidebar_collapsed_v1') === 'true';
@@ -280,7 +292,68 @@ export const Sidebar: React.FC = () => {
           </button>
         </div>
 
-        {/* 2. MENU UTAMA (Scrollable Area) */}
+        {/* 2. PILIHAN TAHUN AJARAN DI ATAS MENU SIDEBAR */}
+        <div className="px-3.5 py-2 shrink-0">
+          {!isCollapsed ? (
+            <div className="p-3 bg-slate-950 border border-slate-800 rounded-2xl shadow-inner space-y-2">
+              <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-emerald-400">
+                <span className="flex items-center space-x-1.5">
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>Tahun Ajaran Eksekusi</span>
+                </span>
+                {!isGuru && (
+                  <div className="flex items-center space-x-1">
+                    <button
+                      type="button"
+                      onClick={() => setIsAddYearModalOpen(true)}
+                      className="px-1.5 py-0.5 rounded bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600 hover:text-white transition-colors cursor-pointer text-[9px] font-black uppercase"
+                      title="Tambah Tahun Baru"
+                    >
+                      + Tahun
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsImportModalOpen(true)}
+                      className="px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-300 hover:bg-blue-600 hover:text-white transition-colors cursor-pointer text-[9px] font-black uppercase"
+                      title="Import Data dari Tahun Sebelumnya"
+                    >
+                      📥 Import
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <select
+                value={activeAcademicYear}
+                onChange={(e) => setActiveAcademicYear(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-black text-white focus:outline-hidden focus:border-emerald-500 cursor-pointer"
+              >
+                {academicYears.map((yr) => (
+                  <option key={yr} value={yr}>
+                    TAHUN AJARAN {yr}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="flex justify-center py-1">
+              <button
+                type="button"
+                onClick={() =>
+                  setActiveAcademicYear(
+                    academicYears[(academicYears.indexOf(activeAcademicYear) + 1) % academicYears.length]
+                  )
+                }
+                className="p-2 rounded-xl bg-slate-950 border border-slate-800 text-[10px] font-mono font-bold text-emerald-400 hover:border-emerald-500 cursor-pointer"
+                title={`TA Aktif: ${activeAcademicYear} (Klik untuk ganti)`}
+              >
+                {activeAcademicYear}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* 3. MENU UTAMA (Scrollable Area) */}
         <div className="flex-1 min-h-0 px-2.5 py-2 space-y-1.5 overflow-y-auto">
           {!isCollapsed && (
             <div className="px-3 py-1.5 text-[10px] font-black tracking-widest text-slate-400 uppercase">
@@ -345,7 +418,7 @@ export const Sidebar: React.FC = () => {
           })}
         </div>
 
-        {/* 3. AREA TOMBOL BAWAH (Fixed at bottom with separator) */}
+        {/* 4. AREA TOMBOL BAWAH (Fixed at bottom with separator) */}
         <div className="mt-auto shrink-0 p-2.5 pt-3 border-t border-slate-800 bg-slate-950/70 space-y-2">
           {/* Tombol KEMBALI KE KIOSK */}
           <button
@@ -404,6 +477,144 @@ export const Sidebar: React.FC = () => {
           </button>
         </div>
       </aside>
+
+      {/* Modal Tambah Tahun Baru */}
+      {isAddYearModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsAddYearModalOpen(false);
+          }}
+        >
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 text-slate-800 space-y-4 border border-slate-200">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-black uppercase tracking-tight text-slate-900">
+                Tambah Tahun Ajaran Baru
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsAddYearModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-slate-600">
+                Format Tahun Ajaran (Contoh: 2027/2028)
+              </label>
+              <input
+                type="text"
+                placeholder="2027/2028"
+                value={newYearInput}
+                onChange={(e) => setNewYearInput(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:bg-white focus:outline-hidden focus:border-emerald-600"
+              />
+            </div>
+
+            <div className="flex items-center space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsAddYearModalOpen(false)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-black uppercase tracking-wider text-xs hover:bg-slate-100 cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (addAcademicYear(newYearInput)) {
+                    setIsAddYearModalOpen(false);
+                    setNewYearInput('');
+                  }
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-wider text-xs shadow-md cursor-pointer"
+              >
+                Tambah & Aktifkan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Import Data dari Tahun Sebelumnya */}
+      {isImportModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsImportModalOpen(false);
+          }}
+        >
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 text-slate-800 space-y-4 border border-slate-200">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-black uppercase tracking-tight text-slate-900">
+                Import Data dari Tahun Sebelumnya
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsImportModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 font-medium">
+              Fitur ini akan menyalin seluruh data kelas dan siswa dari tahun ajaran sumber ke tahun ajaran tujuan baru secara otomatis.
+            </p>
+
+            <div className="space-y-3 text-xs font-bold text-slate-700">
+              <div>
+                <label className="block uppercase tracking-wider mb-1">Tahun Sumber (Asal Data)</label>
+                <select
+                  value={importSourceYear}
+                  onChange={(e) => setImportSourceYear(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 cursor-pointer"
+                >
+                  {academicYears.map((yr) => (
+                    <option key={yr} value={yr}>
+                      TAHUN AJARAN {yr}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block uppercase tracking-wider mb-1">Tahun Tujuan (Tahun Baru)</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: 2027/2028"
+                  value={importTargetYear}
+                  onChange={(e) => setImportTargetYear(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsImportModalOpen(false)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-black uppercase tracking-wider text-xs hover:bg-slate-100 cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (importDataFromPreviousYear(importSourceYear, importTargetYear)) {
+                    setIsImportModalOpen(false);
+                  }
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black uppercase tracking-wider text-xs shadow-md cursor-pointer"
+              >
+                Mulai Import Data
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Konfirmasi Logout */}
       {showLogoutConfirm && (

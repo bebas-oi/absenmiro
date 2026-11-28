@@ -150,6 +150,7 @@ export const initialSettings: SchoolSettings = {
   timeOutStandard: '13:30',
   timeOutFriday: '11:30',
   activeAcademicYear: '2026/2027',
+  academicYears: ['2024/2025', '2025/2026', '2026/2027'],
   activeSemester: 'Ganjil',
   autoMode: true,
   soundEnabled: true,
